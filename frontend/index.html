@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>PDF 페이지 편집기</title>
+
+  <link
+    rel="stylesheet"
+    href="./style.css"
+  />
+</head>
+
+<body class="startup-locked">
+  <div
+    id="startupOverlay"
+    class="startup-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="startupTitle"
+    aria-describedby="startupMessage"
+  >
+    <div class="startup-card">
+      <div
+        id="startupSpinner"
+        class="startup-spinner"
+        aria-hidden="true"
+      ></div>
+
+      <div
+        id="startupSuccessIcon"
+        class="startup-success-icon hidden"
+        aria-hidden="true"
+      >
+        ✓
+      </div>
+
+      <h2 id="startupTitle">
+        서버 연결 중
+      </h2>
+
+      <p id="startupMessage">
+        무료 서버를 시작하고 있습니다.<br />
+        약 10초~1분 정도 소요될 수 있습니다.
+      </p>
+
+      <div
+        id="startupElapsed"
+        class="startup-elapsed"
+        aria-live="polite"
+      >
+        경과 시간: 0초
+      </div>
+
+      <button
+        id="startupStartBtn"
+        class="btn btn-primary startup-start-btn hidden"
+        type="button"
+      >
+        시작하기
+      </button>
+
+      <button
+        id="startupRetryBtn"
+        class="startup-retry-btn hidden"
+        type="button"
+      >
+        다시 연결
+      </button>
+
+      <small
+        id="startupNote"
+        class="startup-note"
+      >
+        연결 중에는 이 창을 닫지 마세요.
+      </small>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div>
+      <h1>PDF 페이지 편집기</h1>
+      <p>
+        PDF 추가 · 페이지 삭제 · 파일 삭제 · 드래그 순서 변경 · 최종 PDF 병합
+      </p>
+    </div>
+
+    <div class="top-actions">
+      <div
+        id="serverStatus"
+        class="server-status checking"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="server-status-dot"></span>
+
+        <span class="server-status-copy">
+          <strong id="serverStatusText">
+            서버 연결 확인 중
+          </strong>
+
+          <small id="serverStatusTime">
+            잠시만 기다려주세요.
+          </small>
+        </span>
+      </div>
+
+      <button
+        id="resetBtn"
+        class="btn btn-light"
+      >
+        초기화
+      </button>
+
+      <button
+        id="exportBtn"
+        class="btn btn-primary"
+      >
+        최종 PDF 만들기
+      </button>
+    </div>
+  </header>
+
+  <main class="layout">
+
+    <aside class="sidebar">
+
+      <section class="panel">
+        <h2>PDF 추가</h2>
+
+        <label
+          id="dropZone"
+          class="drop-zone"
+        >
+          <input
+            id="fileInput"
+            type="file"
+            accept=".pdf,application/pdf"
+            multiple
+            hidden
+          />
+
+          <div class="drop-icon">
+            ＋
+          </div>
+
+          <strong>
+            PDF 파일 선택
+          </strong>
+
+          <span>
+            클릭하거나 파일을 드래그하세요.
+          </span>
+
+          <small>
+            여러 PDF를 한 번에 선택할 수 있습니다.
+          </small>
+        </label>
+
+        <div
+          id="uploadStatus"
+          class="status"
+        ></div>
+      </section>
+
+      <section class="panel">
+
+        <div class="panel-title-row">
+          <h2>
+            추가된 PDF
+          </h2>
+
+          <span
+            id="fileCount"
+            class="badge"
+          >
+            0
+          </span>
+        </div>
+
+        <div
+          id="fileList"
+          class="file-list empty-message"
+        >
+          아직 추가된 PDF가 없습니다.
+        </div>
+
+      </section>
+
+      <section class="panel help-panel">
+
+        <h2>
+          사용 방법
+        </h2>
+
+        <ol>
+          <li>
+            PDF 파일을 추가합니다.
+          </li>
+
+          <li>
+            페이지를 클릭하고, Shift+클릭으로 연속된 여러 페이지를 선택합니다.
+          </li>
+
+          <li>
+            선택한 페이지를 한 칸씩 또는 맨 앞·맨 뒤로 이동할 수 있습니다.
+          </li>
+
+          <li>
+            필요 없는 페이지는 휴지통 버튼으로 삭제합니다.
+          </li>
+
+          <li>
+            한 페이지는 기존처럼 드래그해 순서를 바꿀 수 있습니다.
+          </li>
+
+          <li>
+            최종 PDF 만들기를 누르면 현재 순서대로 합쳐집니다.
+          </li>
+        </ol>
+
+      </section>
+
+    </aside>
+
+    <section class="content">
+
+      <div class="content-head">
+
+        <div>
+          <h2>
+            최종 PDF 페이지 구성
+          </h2>
+
+          <p>
+            아래 순서 그대로 최종 PDF가 생성됩니다.
+          </p>
+        </div>
+
+        <div
+          id="pageCount"
+          class="page-count"
+        >
+          0 pages
+        </div>
+
+      </div>
+
+      <div
+        id="selectionToolbar"
+        class="selection-toolbar"
+      >
+        <div class="selection-status">
+          <strong id="selectionCount">
+            선택된 페이지 없음
+          </strong>
+
+          <span>
+            한 페이지를 클릭한 뒤 Shift+클릭하면 사이 페이지가 함께 선택됩니다.
+          </span>
+        </div>
+
+        <div class="selection-actions">
+          <button
+            id="moveFirstBtn"
+            class="move-btn"
+            type="button"
+            disabled
+          >
+            ⇤ 맨 앞으로
+          </button>
+
+          <button
+            id="moveLeftBtn"
+            class="move-btn"
+            type="button"
+            disabled
+          >
+            ← 한 칸
+          </button>
+
+          <button
+            id="moveRightBtn"
+            class="move-btn"
+            type="button"
+            disabled
+          >
+            한 칸 →
+          </button>
+
+          <button
+            id="moveLastBtn"
+            class="move-btn"
+            type="button"
+            disabled
+          >
+            맨 뒤로 ⇥
+          </button>
+
+          <button
+            id="clearSelectionBtn"
+            class="clear-selection-btn"
+            type="button"
+            disabled
+          >
+            선택 해제
+          </button>
+        </div>
+      </div>
+
+      <div
+        id="pageGrid"
+        class="page-grid empty-grid"
+      >
+
+        <div class="empty-state">
+
+          <div class="empty-visual">
+            PDF
+          </div>
+
+          <strong>
+            PDF 파일을 추가하세요.
+          </strong>
+
+          <span>
+            업로드한 PDF의 모든 페이지가 여기에 표시됩니다.
+          </span>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <div
+    id="previewModal"
+    class="modal hidden"
+  >
+
+    <div class="modal-backdrop"></div>
+
+    <div class="modal-card">
+
+      <div class="modal-header">
+
+        <div>
+          <h2>
+            페이지 미리보기
+          </h2>
+
+          <p
+            id="previewTitle"
+          ></p>
+        </div>
+
+        <button
+          id="closePreviewBtn"
+          class="icon-btn"
+        >
+          ×
+        </button>
+
+      </div>
+
+      <div class="preview-area">
+
+        <img
+          id="previewImage"
+          alt="PDF 페이지 미리보기"
+        />
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div
+    id="loadingOverlay"
+    class="loading-overlay hidden"
+  >
+
+    <div class="loading-card">
+
+      <div class="spinner"></div>
+
+      <strong
+        id="loadingText"
+      >
+        처리 중입니다...
+      </strong>
+
+      <span>
+        PDF 페이지를 분석하고 있습니다.
+      </span>
+
+    </div>
+
+  </div>
+
+
+  <div
+    id="toast"
+    class="toast hidden"
+  ></div>
+
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+
+</body>
+</html>

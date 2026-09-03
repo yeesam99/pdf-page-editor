@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: pdf-page-editor-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ALLOWED_ORIGINS
+        value: "*"
+
+  - type: web
+    name: pdf-page-editor
+    runtime: static
+    buildCommand: node frontend/build-config.mjs
+    staticPublishPath: ./frontend
+    autoDeployTrigger: commit
+    envVars:
+      - key: API_HOSTNAME
+        fromService:
+          name: pdf-page-editor-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
