@@ -51,6 +51,11 @@ class OrderRequest(BaseModel):
     order: list[str]
 
 
+class RotateRequest(BaseModel):
+    page_ids: list[str]
+    degrees: int
+
+
 def validate_session_id(session_id: str) -> str:
     try:
         if not SESSION_RE.match(session_id):
@@ -91,7 +96,14 @@ def load_state(session_id: str) -> dict[str, Any]:
     path = state_file(session_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
-    return json.loads(path.read_text(encoding="utf-8"))
+
+    state = json.loads(path.read_text(encoding="utf-8"))
+
+    # 회전 기능 추가 이전에 만들어진 로컬 세션도 계속 사용할 수 있게 합니다.
+    for page in state.get("pages", []):
+        page["rotation"] = int(page.get("rotation", 0)) % 360
+
+    return state
 
 
 def safe_filename(name: str) -> str:
@@ -129,21 +141,55 @@ def public_state(state: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def render_thumbnail(pdf_path: Path, page_index: int, out_path: Path) -> None:
+def normalize_rotation(rotation: int) -> int:
+    return int(rotation) % 360
+
+
+def render_page_png(
+    pdf_path: Path,
+    page_index: int,
+    target_width: int,
+    rotation: int = 0,
+) -> bytes:
     doc = fitz.open(pdf_path)
     try:
         page = doc.load_page(page_index)
         rect = page.rect
 
-        target_width = 360
-        zoom = target_width / max(rect.width, 1)
+        rotation = normalize_rotation(rotation)
+        rendered_width = (
+            rect.height
+            if rotation in (90, 270)
+            else rect.width
+        )
+
+        zoom = target_width / max(rendered_width, 1)
+        matrix = fitz.Matrix(zoom, zoom).prerotate(rotation)
+
         pix = page.get_pixmap(
-            matrix=fitz.Matrix(zoom, zoom),
+            matrix=matrix,
             alpha=False
         )
-        pix.save(out_path)
+
+        return pix.tobytes("png")
     finally:
         doc.close()
+
+
+def render_thumbnail(
+    pdf_path: Path,
+    page_index: int,
+    out_path: Path,
+    rotation: int = 0,
+) -> None:
+    out_path.write_bytes(
+        render_page_png(
+            pdf_path,
+            page_index,
+            target_width=360,
+            rotation=rotation,
+        )
+    )
 
 
 @app.get("/")
@@ -256,6 +302,7 @@ def upload_pdfs(
                     "source_name": original_name,
                     "source_pdf": str(stored_path),
                     "page_index": page_index,
+                    "rotation": 0,
                 })
 
                 state["order"].append(page_id)
@@ -297,17 +344,29 @@ def preview_page(session_id: str, page_id: str):
         page = doc.load_page(page_info["page_index"])
         rect = page.rect
 
-        target_width = min(1800, max(1200, int(rect.width * 2)))
-        zoom = target_width / max(rect.width, 1)
-
-        pix = page.get_pixmap(
-            matrix=fitz.Matrix(zoom, zoom),
-            alpha=False
+        rotation = normalize_rotation(
+            page_info.get("rotation", 0)
         )
 
-        png_bytes = pix.tobytes("png")
+        rendered_width = (
+            rect.height
+            if rotation in (90, 270)
+            else rect.width
+        )
+
+        target_width = min(
+            1800,
+            max(1200, int(rendered_width * 2)),
+        )
     finally:
         doc.close()
+
+    png_bytes = render_page_png(
+        pdf_path,
+        page_info["page_index"],
+        target_width=target_width,
+        rotation=rotation,
+    )
 
     return Response(
         content=png_bytes,
@@ -334,6 +393,66 @@ def update_order(session_id: str, req: OrderRequest):
         )
 
     state["order"] = req.order
+    save_state(session_id, state)
+
+    return public_state(state)
+
+
+@app.post("/api/session/{session_id}/rotate")
+def rotate_pages(session_id: str, req: RotateRequest):
+    state = load_state(session_id)
+
+    if req.degrees not in (-90, 90):
+        raise HTTPException(
+            status_code=400,
+            detail="회전 각도는 왼쪽 또는 오른쪽 90도만 지원합니다."
+        )
+
+    if not req.page_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="회전할 페이지를 선택해주세요."
+        )
+
+    if len(req.page_ids) != len(set(req.page_ids)):
+        raise HTTPException(
+            status_code=400,
+            detail="중복된 페이지 ID가 있습니다."
+        )
+
+    page_map = {
+        page["id"]: page
+        for page in state["pages"]
+    }
+
+    missing_page_ids = [
+        page_id
+        for page_id in req.page_ids
+        if page_id not in page_map
+    ]
+
+    if missing_page_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="회전할 페이지 중 찾을 수 없는 페이지가 있습니다."
+        )
+
+    thumbnail_dir = session_dir(session_id) / "thumbnails"
+
+    for page_id in req.page_ids:
+        page_info = page_map[page_id]
+        page_info["rotation"] = normalize_rotation(
+            page_info.get("rotation", 0) + req.degrees
+        )
+
+        render_thumbnail(
+            Path(page_info["source_pdf"]),
+            page_info["page_index"],
+            thumbnail_dir / f"{page_id}.png",
+            page_info["rotation"],
+        )
+
+    state["latest_output"] = None
     save_state(session_id, state)
 
     return public_state(state)
@@ -461,6 +580,17 @@ def export_pdf(
                     source_doc,
                     from_page=page_index,
                     to_page=page_index,
+                )
+
+                output_page = output_doc.load_page(
+                    output_doc.page_count - 1
+                )
+
+                output_page.set_rotation(
+                    normalize_rotation(
+                        output_page.rotation
+                        + page_info.get("rotation", 0)
+                    )
                 )
             finally:
                 source_doc.close()

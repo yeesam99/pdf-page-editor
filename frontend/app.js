@@ -20,6 +20,8 @@ let selectionAnchorId = null;
 
 let isSavingOrder = false;
 
+let isRotatingPages = false;
+
 const selectedPageIds =
   new Set();
 
@@ -89,6 +91,12 @@ const closePreviewBtn =
 
 const selectionCount =
   document.getElementById("selectionCount");
+
+const rotateLeftBtn =
+  document.getElementById("rotateLeftBtn");
+
+const rotateRightBtn =
+  document.getElementById("rotateRightBtn");
 
 const moveFirstBtn =
   document.getElementById("moveFirstBtn");
@@ -689,20 +697,29 @@ function updateSelectionToolbar() {
     !range ||
     range.end === appState.order.length - 1;
 
+  const isBusy =
+    isSavingOrder || isRotatingPages;
+
+  rotateLeftBtn.disabled =
+    !hasSelection || isBusy;
+
+  rotateRightBtn.disabled =
+    !hasSelection || isBusy;
+
   moveFirstBtn.disabled =
-    !hasSelection || atFirst || isSavingOrder;
+    !hasSelection || atFirst || isBusy;
 
   moveLeftBtn.disabled =
-    !hasSelection || atFirst || isSavingOrder;
+    !hasSelection || atFirst || isBusy;
 
   moveRightBtn.disabled =
-    !hasSelection || atLast || isSavingOrder;
+    !hasSelection || atLast || isBusy;
 
   moveLastBtn.disabled =
-    !hasSelection || atLast || isSavingOrder;
+    !hasSelection || atLast || isBusy;
 
   clearSelectionBtn.disabled =
-    !hasSelection || isSavingOrder;
+    !hasSelection || isBusy;
 }
 
 
@@ -918,6 +935,94 @@ async function moveSelectedPages(
 }
 
 
+async function rotateSelectedPages(
+  degrees
+) {
+  const range =
+    getSelectedRange();
+
+  if (!range) {
+    showToast(
+      "서로 붙어 있는 페이지를 선택해주세요."
+    );
+    return;
+  }
+
+  const pageIds =
+    appState.order.slice(
+      range.start,
+      range.end + 1
+    );
+
+  isRotatingPages = true;
+  renderPages();
+
+  showLoading(
+    `${range.count}개 페이지를 회전하고 있습니다...`
+  );
+
+  try {
+    appState =
+      await api(
+        `/api/session/${sessionId}/rotate`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify(
+              {
+                page_ids: pageIds,
+                degrees
+              }
+            )
+        }
+      );
+
+    pruneSelection();
+
+    showToast(
+      `${range.count}개 페이지를 ${degrees < 0 ? "왼쪽" : "오른쪽"}으로 90도 회전했습니다.`
+    );
+  }
+  catch (e) {
+    showToast(
+      e.message,
+      5000
+    );
+  }
+  finally {
+    isRotatingPages = false;
+    hideLoading();
+    render();
+  }
+}
+
+
+function formatRotation(rotation) {
+  const normalized =
+    ((Number(rotation) || 0) % 360 + 360) % 360;
+
+  if (normalized === 90) {
+    return "오른쪽 90°";
+  }
+
+  if (normalized === 180) {
+    return "180°";
+  }
+
+  if (normalized === 270) {
+    return "왼쪽 90°";
+  }
+
+  return "";
+}
+
+
 function render() {
   pruneSelection();
   renderFiles();
@@ -1117,9 +1222,12 @@ function renderPages() {
       const img =
         document.createElement("img");
 
+      const rotation =
+        Number(page.rotation || 0) % 360;
+
       img.src =
         apiUrl(
-          `/api/session/${sessionId}/thumbnail/${page.id}`
+          `/api/session/${sessionId}/thumbnail/${page.id}?rotation=${rotation}`
         );
 
       img.alt =
@@ -1208,8 +1316,11 @@ function renderPages() {
       sourcePage.className =
         "source-page";
 
+      const rotationText =
+        formatRotation(page.rotation);
+
       sourcePage.textContent =
-        `원본 ${page.page_index + 1}페이지`;
+        `원본 ${page.page_index + 1}페이지${rotationText ? ` · ${rotationText}` : ""}`;
 
 
       const actions =
@@ -1638,8 +1749,11 @@ async function deleteFile(file) {
 
 
 function openPreview(page) {
+  const rotationText =
+    formatRotation(page.rotation);
+
   previewTitle.textContent =
-    `${page.source_name} · 원본 ${page.page_index + 1}페이지`;
+    `${page.source_name} · 원본 ${page.page_index + 1}페이지${rotationText ? ` · ${rotationText}` : ""}`;
 
   previewImage.src =
     apiUrl(
@@ -1853,6 +1967,18 @@ resetBtn.addEventListener(
 exportBtn.addEventListener(
   "click",
   exportPdf
+);
+
+
+rotateLeftBtn.addEventListener(
+  "click",
+  () => rotateSelectedPages(-90)
+);
+
+
+rotateRightBtn.addEventListener(
+  "click",
+  () => rotateSelectedPages(90)
 );
 
 
