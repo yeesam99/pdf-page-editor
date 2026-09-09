@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQL 생성기</title>
+  <meta name="description" content="테이블과 조건을 조립하고 SQL을 복사하세요.">
+  <link rel="stylesheet" href="sql-builder.css">
+  <script defer src="sql-builder-core.js"></script>
+  <script defer src="sql-builder.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-icon">SQL</span><div><h1>SQL 생성기</h1><p>테이블과 조건으로 구성하는 쿼리</p></div></div>
+    <div class="top-actions"><label>DBMS <select id="dialect"><option value="tibero">Tibero</option><option value="oracle">Oracle</option><option value="mssql">MSSQL</option><option value="mysql">MySQL</option></select></label><button id="save">설정 저장</button><button id="load">불러오기</button><button id="example">예제</button><button id="reset">새 쿼리</button></div>
+  </header>
+  <nav class="modebar" aria-label="쿼리 종류"><div id="modes"></div><label class="check"><input type="checkbox" id="quote"> 식별자 따옴표 사용</label></nav>
+  <main class="workspace">
+    <aside class="tree-panel"><div class="panel-heading"><h2>쿼리 구조</h2><span id="table-count"></span></div><div id="tree"></div><div class="tree-help">테이블을 선택해 컬럼을 설정하세요.<br>하위 조회는 부모 조건에서 연결됩니다.</div></aside>
+    <section class="editor-panel" aria-label="쿼리 설정"><div id="editor"></div></section>
+    <aside class="preview-panel"><div class="preview-heading"><div><h2>SQL 미리보기</h2><span id="sql-meta">읽기 전용</span></div><button id="copy" class="primary">쿼리 복사</button></div><div id="issues" aria-live="polite"></div><pre id="sql" tabindex="0" aria-label="읽기 전용 SQL 미리보기"><code></code></pre><div class="preview-footer">설정을 변경하면 즉시 반영됩니다. <span id="line-count"></span></div><div id="parameters"></div></aside>
+  </main>
+  <dialog id="picker" aria-labelledby="picker-title"><div class="dialog-heading"><div><h2 id="picker-title">컬럼 찾기</h2><p id="picker-subtitle">컬럼명 또는 설명으로 검색하세요.</p></div><button data-close="picker" aria-label="닫기">✕</button></div><div class="picker-controls"><select id="picker-table" aria-label="테이블 필터"></select><input id="picker-search" type="search" placeholder="컬럼명 또는 설명 검색" aria-label="컬럼 검색"></div><div id="picker-actions"></div><div class="picker-results" id="picker-results"></div><div class="dialog-footer"><span id="picker-count"></span><button id="picker-apply" class="primary">선택 적용</button></div></dialog>
+  <input type="file" id="load-file" accept=".json,application/json" hidden>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>
