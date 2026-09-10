@@ -8,7 +8,7 @@
   const column = (name='',description='') => ({id:uid(),name,description,selected:true,output:'',value:'',valueType:'text',aggregate:''});
   const table = (alias='A') => ({id:uid(),name:'',alias,join:'LEFT JOIN',on:group(),columns:[],query:null});
   const query = (alias='A') => ({id:uid(),tables:[table(alias)],where:group(),having:group(),order:[]});
-  const project = () => ({version:1,dialect:'tibero',mode:'SELECT',quote:false,root:query()});
+  const project = () => ({version:1,dialect:'tibero',mode:'SELECT',quote:false,sampleData:{},root:query()});
   const ops = ['=','!=','>','>=','<','<=','LIKE','NOT LIKE','IN','NOT IN','BETWEEN','NOT BETWEEN','IS NULL','IS NOT NULL','EXISTS','NOT EXISTS'];
   const aggregates=['','SUM','COUNT','COUNT_DISTINCT','AVG','MIN','MAX','COUNT_ALL'];
   const windowFunctions=['SUM','COUNT','AVG','MIN','MAX','COUNT_ALL','ROW_NUMBER','RANK','DENSE_RANK'];
@@ -284,7 +284,11 @@
       checkGroup(q.having,d+1);
       q.order.forEach(o=>{if(!o||!o.ref||!['ASC','DESC'].includes(o.direction))throw Error('정렬 설정을 확인하세요.');});
     }
-    if(!p||p.version!==1||!['tibero','oracle','mssql','mysql'].includes(p.dialect)||!['SELECT','UPDATE','INSERT','DELETE'].includes(p.mode)||typeof p.quote!=='boolean')throw Error('SQL 생성기 설정 파일이 아닙니다.');checkQuery(p.root,0);return p;
+    if(!p||p.version!==1||!['tibero','oracle','mssql','mysql'].includes(p.dialect)||!['SELECT','UPDATE','INSERT','DELETE'].includes(p.mode)||typeof p.quote!=='boolean')throw Error('SQL 생성기 설정 파일이 아닙니다.');
+    if(p.sampleData===undefined)p.sampleData={};
+    if(!p.sampleData||typeof p.sampleData!=='object'||Array.isArray(p.sampleData))throw Error('예시 데이터 설정을 확인하세요.');
+    let sampleCells=0;Object.entries(p.sampleData).forEach(([tableId,rows])=>{str(tableId);if(!Array.isArray(rows)||rows.length>1000)throw Error('예시 데이터는 표당 최대 1,000행입니다.');rows.forEach(row=>{if(!Array.isArray(row)||row.length>2000)throw Error('예시 데이터 행을 확인하세요.');row.forEach(cell=>{if(++sampleCells>200000)throw Error('예시 데이터 규모가 너무 큽니다.');if(cell!==null&&typeof cell!=='string'&&typeof cell!=='number')throw Error('예시 데이터 값 형식을 확인하세요.');});});});
+    checkQuery(p.root,0);return p;
   }
   const api={uid,group,condition,column,table,query,project,ops,aggregates,windowFunctions,ranking,windowSpec,havingOps,children,walkGroup,findQuery,queryParent,deleteSubquery,findNode,exportsOf,refs,outputRefs,outputName,outputExpression,setOutput,duplicateOutput,addCountAll,parsePaste,generate,validateProject};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.SQLBuilderCore=api;

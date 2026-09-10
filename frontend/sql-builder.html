@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SQL 생성기</title>
   <meta name="description" content="테이블과 조건을 조립하고 SQL을 복사하세요.">
-  <link rel="stylesheet" href="sql-builder.css?v=4">
-  <script defer src="sql-builder-core.js?v=4"></script>
-  <script defer src="sql-builder.js?v=4"></script>
+  <link rel="stylesheet" href="sql-builder.css?v=5">
+  <script defer src="sql-builder-core.js?v=5"></script>
+  <script defer src="sql-builder-preview.js?v=5"></script>
+  <script defer src="sql-builder.js?v=5"></script>
 </head>
 <body>
   <header class="topbar">
@@ -18,9 +19,10 @@
   <main class="workspace">
     <aside class="tree-panel"><div class="panel-heading"><h2>쿼리 구조</h2><span id="table-count"></span></div><div id="tree"></div><div class="tree-help">테이블을 선택해 컬럼을 설정하세요.<br>하위 조회는 부모 조건에서 연결됩니다.</div></aside>
     <section class="editor-panel" aria-label="쿼리 설정"><div id="editor"></div></section>
-    <aside class="preview-panel"><div class="preview-heading"><div><h2>SQL 미리보기</h2><span id="sql-meta">읽기 전용</span></div><button id="copy" class="primary">쿼리 복사</button></div><div id="issues" aria-live="polite"></div><pre id="sql" tabindex="0" aria-label="읽기 전용 SQL 미리보기"><code></code></pre><div class="preview-footer">설정을 변경하면 즉시 반영됩니다. <span id="line-count"></span></div><div id="parameters"></div></aside>
+    <aside class="preview-panel"><div class="preview-heading"><div><h2>SQL 미리보기</h2><span id="sql-meta">읽기 전용</span></div><button id="copy" class="primary">쿼리 복사</button></div><div id="issues" aria-live="polite"></div><pre id="sql" tabindex="0" aria-label="읽기 전용 SQL 미리보기"><code></code></pre><div class="preview-footer">설정을 변경하면 즉시 반영됩니다. <span id="line-count"></span></div><div id="parameters"></div><section class="result-panel" aria-label="예상 결과"><div class="result-heading"><div><h2>예상 결과</h2><span id="result-count">예시 데이터 없음</span></div><label class="check"><input id="auto-calc" type="checkbox" checked> 자동 계산</label></div><div id="result-message"></div><div id="result-grid" class="result-grid"></div></section></aside>
   </main>
   <dialog id="picker" aria-labelledby="picker-title"><div class="dialog-heading"><div><h2 id="picker-title">컬럼 찾기</h2><p id="picker-subtitle">컬럼명 또는 설명으로 검색하세요.</p></div><button data-close="picker" aria-label="닫기">✕</button></div><div class="picker-controls"><select id="picker-table" aria-label="테이블 필터"></select><input id="picker-search" type="search" placeholder="컬럼명 또는 설명 검색" aria-label="컬럼 검색"></div><div id="picker-actions"></div><div class="picker-results" id="picker-results"></div><div class="dialog-footer"><span id="picker-count"></span><button id="picker-apply" class="primary">선택 적용</button></div></dialog>
+  <dialog id="sample-dialog" class="sample-dialog" aria-labelledby="sample-title"><div class="dialog-heading"><div><h2 id="sample-title">예시 데이터</h2><p>컬럼 아래에 값을 입력하거나 Excel 범위를 붙여넣으세요. 빈 셀과 NULL은 NULL로 계산됩니다.</p></div><button data-close="sample-dialog" aria-label="닫기">✕</button></div><div class="sample-toolbar"><button id="sample-add-row">+ 행 추가</button><button id="sample-paste">엑셀 붙여넣기</button><button id="sample-clear">전체 지우기</button><span id="sample-count"></span></div><textarea id="sample-paste-text" class="paste" placeholder="첫 행에 컬럼명이 있어도 자동으로 구분합니다.&#10;1&#9;D1&#9;100&#10;2&#9;D1&#9;200" hidden></textarea><div id="sample-grid" class="sample-grid"></div><div class="dialog-footer"><span>최대 1,000행 · 데이터는 브라우저 안에서만 사용됩니다.</span><button id="sample-done" class="primary">적용하고 닫기</button></div></dialog>
   <input type="file" id="load-file" accept=".json,application/json" hidden>
   <div id="toast" role="status" hidden></div>
 </body>

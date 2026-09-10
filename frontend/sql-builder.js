@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const C=window.SQLBuilderCore, $=id=>document.getElementById(id);
-  let p=C.project(), currentQ=p.root.id, currentT=p.root.tables[0].id, filter='', toastTimer, pickerState=null, focusedRef=null, renderedTable='';
+  let p=C.project(), currentQ=p.root.id, currentT=p.root.tables[0].id, filter='', toastTimer, pickerState=null, focusedRef=null, renderedTable='', sampleTableId='',calcTimer;
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const opt=(v,label,selected)=>`<option value="${esc(v)}"${v===selected?' selected':''}>${esc(label)}</option>`;
   const options=(list,selected)=>list.map(x=>opt(Array.isArray(x)?x[0]:x,Array.isArray(x)?x[1]:x,selected)).join('');
@@ -31,11 +31,12 @@
   function isHaving(id){let found=false;if(ctx().query.having)C.walkGroup(ctx().query.having,n=>{if(n.id===id)found=true;});return found;}
   function renderTree(){
     function draw(q,depth=0,label='메인 조회'){
-      return `<div class="tree-query"><div class="tree-heading"><div class="tree-label">${esc(label)}</div>${depth?`<button type="button" class="tree-delete" data-delete-query="${esc(q.id)}" aria-label="${esc(label)} 삭제" title="이 하위 조회 전체 삭제">삭제</button>`:''}</div>${q.tables.map((t,i)=>`<button class="tree-node ${q.id===currentQ&&t.id===currentT?'selected':''}" data-q="${esc(q.id)}" data-t="${esc(t.id)}"><strong>${esc(t.alias||'?')}</strong> · ${esc(t.query?'하위 조회표':t.name||'테이블명 입력')}<small>${i?esc(t.join):'MAIN'} · ${C.exportsOf(t).length}개 컬럼</small></button>`).join('')}${C.children(q).map(c=>draw(c.query,depth+1,c.kind==='derived'?`JOIN 하위 조회 · ${c.owner.alias}`:c.kind+' 하위 조회')).join('')}</div>`;
+      return `<div class="tree-query"><div class="tree-heading"><div class="tree-label">${esc(label)}</div>${depth?`<button type="button" class="tree-delete" data-delete-query="${esc(q.id)}" aria-label="${esc(label)} 삭제" title="이 하위 조회 전체 삭제">삭제</button>`:''}</div>${q.tables.map((t,i)=>`<button class="tree-node ${q.id===currentQ&&t.id===currentT?'selected':''}" data-q="${esc(q.id)}" data-t="${esc(t.id)}"><strong>${esc(t.alias||'?')}</strong> · ${esc(t.query?'하위 조회표':t.name||'테이블명 입력')}<small>${i?esc(t.join):'MAIN'} · ${C.exportsOf(t).length}개 컬럼${!t.query?` · ${(p.sampleData?.[t.id]||[]).length}행 예시`:''}</small></button>`).join('')}${C.children(q).map(c=>draw(c.query,depth+1,c.kind==='derived'?`JOIN 하위 조회 · ${c.owner.alias}`:c.kind+' 하위 조회')).join('')}</div>`;
     }
     $('tree').innerHTML=draw(p.root);$('table-count').textContent=allQueries().reduce((n,q)=>n+q.tables.length,0)+'개';
   }
   function selectedColumns(t){return C.exportsOf(t).filter(c=>c.selected);}
+  function sampleColumns(t){const out=[];t.columns.filter(c=>c.aggregate!=='COUNT_ALL'&&c.name!=='*').forEach(c=>{if(c.name&&!out.some(x=>x.name.toUpperCase()===c.name.toUpperCase()))out.push(c);});return out;}
   function visibleColumns(t){const f=filter.toLowerCase();return C.exportsOf(t).filter(c=>(c.name+' '+c.description+' '+C.outputName(c)+' '+(c.window?.fn||c.aggregate||'')).toLowerCase().includes(f));}
   function columnSection(t){
     const m=mode(),values=m==='UPDATE'||m==='INSERT',readonly=!!t.query;
@@ -93,7 +94,7 @@
     const {query:q}=ctx(),t=table(),index=q.tables.indexOf(t),m=mode();
     const isRoot=q.id===p.root.id,parentLink=isRoot?null:C.queryParent(p.root,q.id);
     $('editor').innerHTML=`${parentLink?`<div class="sub-navigation"><span>${esc(parentLink.kind==='derived'?'JOIN 하위 조회 · '+parentLink.owner.alias:parentLink.kind+' 하위 조회')}</span><div class="row-buttons">${btn('parent-query','← 상위 설정')}<button type="button" class="danger" data-delete-query="${esc(q.id)}">이 하위 조회 삭제</button></div></div>`:''}<div class="breadcrumb">${isRoot?'메인 쿼리':'하위 조회'} / ${esc(t.alias||'별칭 입력')}</div><div class="editor-title"><h2>${esc(t.query?'JOIN 하위 조회표':t.name||'테이블 설정')}</h2>${m==='SELECT'?`<div class="row-buttons">${btn('table-add','+ 동일 표 (JOIN)')}${btn('derived-add','+ 하위 조회표')}</div>`:''}</div>
-      <div class="section"><div class="section-title"><h3>${index?'JOIN 테이블':'메인 테이블'}</h3>${index?btn('table-delete','표 삭제','','danger'):'<span class="badge">MAIN</span>'}</div><div class="fields">${!t.query?`<label class="field">테이블명${input(t,'name',t.name,'placeholder="TB_EMP 또는 SCHEMA.TB_EMP"')}</label>`:''}<label class="field">별칭${input(t,'alias',t.alias,'placeholder="A"')}</label>${index?`<label class="field">JOIN 종류${select(t,'join',['INNER JOIN','LEFT JOIN','RIGHT JOIN','FULL JOIN','CROSS JOIN'],t.join)}</label>`:''}</div>${index&&t.join!=='CROSS JOIN'?renderGroup(t.on,'ON'):''}</div>
+      <div class="section"><div class="section-title"><h3>${index?'JOIN 테이블':'메인 테이블'}</h3><div class="row-buttons">${!t.query?btn('sample-open','예시 데이터',`data-id="${esc(t.id)}"`):''}${index?btn('table-delete','표 삭제','','danger'):'<span class="badge">MAIN</span>'}</div></div><div class="fields">${!t.query?`<label class="field">테이블명${input(t,'name',t.name,'placeholder="TB_EMP 또는 SCHEMA.TB_EMP"')}</label>`:''}<label class="field">별칭${input(t,'alias',t.alias,'placeholder="A"')}</label>${index?`<label class="field">JOIN 종류${select(t,'join',['INNER JOIN','LEFT JOIN','RIGHT JOIN','FULL JOIN','CROSS JOIN'],t.join)}</label>`:''}</div>${index&&t.join!=='CROSS JOIN'?renderGroup(t.on,'ON'):''}</div>
       ${columnSection(t)}
       ${m==='SELECT'?renderWindow(t):''}
       ${m!=='INSERT'?`<div class="section"><div class="section-title"><h3>조건 WHERE</h3><span class="muted">현재 조회 전체에 적용</span></div>${renderGroup(q.where)}${['UPDATE','DELETE'].includes(m)&&!q.where.items.length?'<p class="danger-hint">현재 WHERE가 없어 모든 행을 대상으로 하는 쿼리입니다.</p>':''}</div>`:''}
@@ -102,6 +103,20 @@
       ${m==='SELECT'&&!isRoot?'<p class="hint">하위 조회를 설정한 뒤 왼쪽 트리에서 상위 테이블로 돌아가세요.</p>':''}`;
   }
   function highlight(sql){return sql.split(/(--[^\n]*|'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE)\b)/g).map(s=>s.startsWith('--')?`<span class="comment">${esc(s)}</span>`:s.startsWith("'")?`<span class="string">${esc(s)}</span>`:/^(SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE)$/.test(s)?`<span class="keyword">${s}</span>`:esc(s)).join('');}
+  function formatResult(v){if(v===null||v===undefined)return '<span class="null-value">NULL</span>';if(typeof v==='number'&&Number.isFinite(v))return esc(Number.isInteger(v)?v:Number(v.toFixed(8)));return esc(v);}
+  function calculateResult(sqlErrors=[]){
+    clearTimeout(calcTimer);calcTimer=setTimeout(()=>{
+      if(!$('auto-calc').checked){$('result-count').textContent='자동 계산 꺼짐';$('result-message').textContent='자동 계산을 켜면 현재 예시 데이터로 결과를 확인합니다.';$('result-grid').innerHTML='';return;}
+      if(p.mode!=='SELECT'){$('result-count').textContent='조회 전용';$('result-message').textContent='예상 결과는 SELECT에서만 계산합니다.';$('result-grid').innerHTML='';return;}
+      if(sqlErrors.length){$('result-count').textContent='설정 확인 필요';$('result-message').textContent='SQL 미리보기의 안내를 먼저 확인하세요.';$('result-grid').innerHTML='';return;}
+      const hasData=Object.values(p.sampleData||{}).some(rows=>rows.length);
+      if(!hasData){$('result-count').textContent='예시 데이터 없음';$('result-message').textContent='테이블의 예시 데이터 버튼을 눌러 값을 입력하세요.';$('result-grid').innerHTML='';return;}
+      const result=window.SQLBuilderPreview.evaluate(p,100);
+      if(result.errors.length){$('result-count').textContent='계산 불가';$('result-message').textContent=result.errors.join(' ');$('result-grid').innerHTML='';return;}
+      $('result-count').textContent='결과 '+result.total+'건'+(result.total>100?' · 100건 표시':'');$('result-message').textContent=result.warnings.join(' ');
+      $('result-grid').innerHTML=`<table><thead><tr>${result.columns.map(c=>'<th>'+esc(c)+'</th>').join('')}</tr></thead><tbody>${result.rows.map(row=>'<tr>'+row.map(v=>'<td>'+formatResult(v)+'</td>').join('')+'</tr>').join('')||`<tr><td colspan="${Math.max(1,result.columns.length)}" class="empty">조건에 맞는 결과가 없습니다.</td></tr>`}</tbody></table>`;
+    },250);
+  }
   function preview(){
     let result;try{result=C.generate(p);}catch(e){result={sql:'-- 설정을 확인하세요.',errors:['쿼리 구성 오류: '+e.message],params:[]};}
     $('sql').firstElementChild.innerHTML=result.sql.split('\n').map(line=>`<span class="${focusedRef&&line.includes(focusedRef)?'highlight':''}">${highlight(line)}</span>`).join('\n');$('copy').disabled=!!result.errors.length;
@@ -111,8 +126,11 @@
     const t=table();if($('selection-info'))$('selection-info').textContent=`전체 ${C.exportsOf(t).length}개 중 ${selectedColumns(t).length}개 선택`;
     if($('group-summary'))$('group-summary').innerHTML=groupSummary(ctx().query);
     if($('all-check')){const total=C.exportsOf(t).length,n=selectedColumns(t).length;$('all-check').checked=total>0&&total===n;$('all-check').indeterminate=n>0&&n<total;}
+    calculateResult(result.errors);
   }
+  function pruneSamples(){p.sampleData=p.sampleData||{};const active=new Set(allQueries().flatMap(q=>q.tables.filter(t=>!t.query).map(t=>t.id)));Object.keys(p.sampleData).forEach(id=>{if(!active.has(id))delete p.sampleData[id];});}
   function render(){
+    pruneSamples();
     const wrap=document.querySelector('.table-wrap'),position=renderedTable===currentT&&wrap?{top:wrap.scrollTop,left:wrap.scrollLeft}:null;
     $('dialect').value=p.dialect;$('quote').checked=p.quote;
     $('modes').innerHTML=[['SELECT','조회'],['UPDATE','수정'],['INSERT','등록'],['DELETE','삭제']].map(([v,s])=>`<button data-mode="${v}" class="${p.mode===v?'active-mode':''}" aria-pressed="${p.mode===v}">${s} <b>${v}</b></button>`).join('');
@@ -141,10 +159,37 @@
     const rows=pickerFiltered();$('picker-results').innerHTML=`<table><thead><tr><th>선택</th><th>테이블</th><th>컬럼명</th><th>설명</th></tr></thead><tbody>${rows.map(r=>{const k=refKey(r),checked=pickerState.selected.has(k);return `<tr data-pick-key="${esc(k)}" class="${checked?'chosen':''}"><td><input type="${pickerState.multi?'checkbox':'radio'}" name="column-pick" value="${esc(k)}" aria-label="${esc(r.alias+'.'+r.name)} 선택" ${checked?'checked':''}></td><td>${r.outer?'<span class="badge">상위</span> ':''}${esc(r.alias)}<br><span class="muted">${esc(r.tableName)}</span></td><td class="column-name">${esc(r.name)}</td><td>${esc(r.description)}</td></tr>`;}).join('')||'<tr><td colspan="4" class="empty">해당 컬럼이 없습니다. 먼저 테이블에 컬럼을 입력하세요.</td></tr>'}</tbody></table>`;
     $('picker-count').textContent=rows.length+'개 검색 · '+pickerState.selected.size+'개 선택';$('picker-apply').disabled=!pickerState.allowEmpty&&!pickerState.selected.size;
   }
+  function parseGrid(text){
+    const rows=[];let row=[],cell='',quoted=false;const src=String(text).replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    for(let i=0;i<src.length;i++){const ch=src[i];if(ch==='"'&&(quoted||cell==='')){if(quoted&&src[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(!quoted&&(ch==='\t'||ch==='\n')){row.push(cell);cell='';if(ch==='\n'){rows.push(row);row=[];}}else cell+=ch;}row.push(cell);rows.push(row);return rows.filter(r=>r.some(v=>v!==''));
+  }
+  function sampleTarget(){return allQueries().flatMap(q=>q.tables).find(t=>t.id===sampleTableId&&!t.query);}
+  function normalizeSample(t){p.sampleData=p.sampleData||{};const width=sampleColumns(t).length;p.sampleData[t.id]=(p.sampleData[t.id]||[]).slice(0,1000).map(row=>Array.from({length:width},(_,i)=>String(row[i]??'')));return p.sampleData[t.id];}
+  function renderSample(){
+    const t=sampleTarget();if(!t)return;const cols=sampleColumns(t),rows=normalizeSample(t);$('sample-title').textContent=`예시 데이터 · ${t.alias}${t.name?' · '+t.name:''}`;$('sample-count').textContent=rows.length+'행 · '+cols.length+'열';
+    $('sample-grid').innerHTML=cols.length?`<table><thead><tr><th>#</th>${cols.map(c=>`<th title="${esc(c.description)}">${esc(c.name)}${c.description?`<small>${esc(c.description)}</small>`:''}</th>`).join('')}<th>행</th></tr></thead><tbody>${rows.map((row,r)=>`<tr><td class="row-number">${r+1}</td>${cols.map((c,i)=>`<td><input data-sample-r="${r}" data-sample-c="${i}" value="${esc(row[i])}" aria-label="${esc(c.name)} ${r+1}행" placeholder="NULL"></td>`).join('')}<td><button type="button" class="danger" data-sample-delete="${r}" aria-label="${r+1}행 삭제">×</button></td></tr>`).join('')||`<tr><td colspan="${cols.length+2}" class="empty">행 추가를 누르거나 Excel 데이터를 붙여넣으세요.</td></tr>`}</tbody></table>`:'<p class="empty">먼저 테이블 컬럼을 입력하세요.</p>';
+  }
+  function openSample(t){if(!sampleColumns(t).length){notice('먼저 테이블 컬럼을 입력하세요.');return;}sampleTableId=t.id;normalizeSample(t);$('sample-paste-text').hidden=true;$('sample-paste-text').value='';renderSample();$('sample-dialog').showModal();}
+  function applyGridPaste(t,startRow,startCol,text,replace=false){
+    let incoming=parseGrid(text),cols=sampleColumns(t);if(!incoming.length)return;
+    const header=incoming[0].length&&incoming[0].every((v,i)=>!cols[i]||String(v).trim().toUpperCase()===cols[i].name.toUpperCase());if(header)incoming.shift();if(!incoming.length)return;
+    if(replace)p.sampleData[t.id]=[];const rows=normalizeSample(t);if(replace){startRow=0;startCol=0;}
+    if(startRow+incoming.length>1000){notice('예시 데이터는 표당 최대 1,000행입니다.');incoming=incoming.slice(0,1000-startRow);}
+    incoming.forEach((values,r)=>{while(rows.length<=startRow+r)rows.push(Array(cols.length).fill(''));values.slice(0,cols.length-startCol).forEach((v,c)=>rows[startRow+r][startCol+c]=v);});renderSample();calculateResult(C.generate(p).errors);
+  }
   $('picker-search').oninput=renderPicker;$('picker-table').onchange=renderPicker;
   $('picker-results').onclick=e=>{const row=e.target.closest('[data-pick-key]');if(!row)return;const k=row.dataset.pickKey;if(!pickerState.multi)pickerState.selected.clear();if(pickerState.selected.has(k))pickerState.selected.delete(k);else pickerState.selected.add(k);renderPicker();};
   $('picker-apply').onclick=()=>{const ps=pickerState;const chosen=ps.refs.filter(r=>ps.selected.has(refKey(r))).map(r=>({table:r.table,column:r.column,...(r.outputRef?{outputRef:true}:{})}));$('picker').close();ps.onApply(chosen);render();};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
+  $('sample-add-row').onclick=()=>{const t=sampleTarget();if(!t)return;const rows=normalizeSample(t);if(rows.length>=1000){notice('예시 데이터는 최대 1,000행입니다.');return;}rows.push(Array(sampleColumns(t).length).fill(''));renderSample();calculateResult(C.generate(p).errors);$('sample-grid').querySelector('tbody tr:last-child input')?.focus();};
+  $('sample-clear').onclick=()=>{const t=sampleTarget();if(!t||!confirm('이 테이블의 예시 데이터를 모두 지울까요?'))return;p.sampleData[t.id]=[];renderSample();calculateResult(C.generate(p).errors);};
+  $('sample-paste').onclick=()=>{const el=$('sample-paste-text');el.hidden=!el.hidden;if(!el.hidden)el.focus();};
+  $('sample-paste-text').onpaste=e=>{const t=sampleTarget();if(!t)return;e.preventDefault();applyGridPaste(t,0,0,e.clipboardData.getData('text'),true);$('sample-paste-text').hidden=true;};
+  $('sample-grid').oninput=e=>{if(e.target.dataset.sampleR===undefined)return;const t=sampleTarget(),rows=normalizeSample(t);rows[+e.target.dataset.sampleR][+e.target.dataset.sampleC]=e.target.value;calculateResult(C.generate(p).errors);};
+  $('sample-grid').onclick=e=>{const b=e.target.closest('[data-sample-delete]');if(!b)return;const t=sampleTarget();normalizeSample(t).splice(+b.dataset.sampleDelete,1);renderSample();calculateResult(C.generate(p).errors);};
+  $('sample-grid').onpaste=e=>{const input=e.target.closest('[data-sample-r]');if(!input)return;const text=e.clipboardData.getData('text');if(!/[\t\n]/.test(text))return;e.preventDefault();applyGridPaste(sampleTarget(),+input.dataset.sampleR,+input.dataset.sampleC,text);};
+  $('sample-done').onclick=()=>{$('sample-dialog').close();preview();};
+  $('auto-calc').onchange=()=>calculateResult(C.generate(p).errors);
   $('tree').onclick=e=>{const remove=e.target.closest('[data-delete-query]');if(remove){deleteQuery(remove.dataset.deleteQuery);return;}const b=e.target.closest('[data-q]');if(!b)return;const q=C.findQuery(p.root,b.dataset.q)?.query;if(q)navigate(q,q.tables.find(t=>t.id===b.dataset.t));};
   $('modes').onclick=e=>{const b=e.target.closest('[data-mode]');if(!b)return;if(b.dataset.mode!=='SELECT'&&(p.root.tables.length>1||p.root.tables[0].query)){notice('수정·등록·삭제는 메인 일반 테이블 하나일 때 사용할 수 있습니다.');return;}if(b.dataset.mode!=='SELECT'&&(selectedColumns(p.root.tables[0]).some(c=>c.aggregate||c.window)||p.root.having?.items.length)){notice('집계 출력·HAVING을 해제한 뒤 변경하거나 새 쿼리를 만들어 주세요.');return;}p.mode=b.dataset.mode;navigate(p.root,p.root.tables[0]);};
   $('dialect').onchange=()=>{p.dialect=$('dialect').value;preview();};$('quote').onchange=()=>{p.quote=$('quote').checked;preview();};
@@ -187,6 +232,7 @@
     }
     if(a==='table-delete'){if(t.query){deleteQuery(t.query.id);return;}if(!confirm('이 표를 삭제할까요? 연결된 조건은 다시 선택해야 합니다.'))return;q.tables=q.tables.filter(x=>x.id!==t.id);navigate(q,q.tables[0]);return;}
     if(a==='edit-derived'){navigate(t.query,t.query.tables[0]);return;}
+    if(a==='sample-open'){openSample(t);return;}
     if(a==='paste-add'){const rows=C.parsePaste($('paste-columns').value);if(!rows.length){notice('컬럼 정보를 붙여넣어 주세요.');return;}if(t.columns.length+rows.length>2000){notice('표당 최대 2,000개 컬럼까지 추가할 수 있습니다.');return;}const names=new Set(t.columns.map(c=>c.name.toUpperCase()));const unique=rows.filter(c=>{if(names.has(c.name.toUpperCase()))return false;names.add(c.name.toUpperCase());return true;});t.columns.push(...unique);notice(unique.length+'개 컬럼 추가'+(rows.length!==unique.length?' (중복 제외)':''));}
     if(a==='column-add')t.columns.push(C.column());
     if(a==='window-edit'){const c=C.exportsOf(t).find(c=>c.id===id);windowColumn=id;if(!c.window)C.setOutput(t,id,'window',C.windowSpec(c.aggregate==='COUNT_DISTINCT'?'COUNT':c.aggregate||'SUM'));render();document.querySelector('.window-settings')?.scrollIntoView({block:'nearest'});return;}
@@ -238,6 +284,7 @@
     const b=C.table('B');b.name='TB_DEPT';b.columns=[C.column('DEPT_CD','부서코드'),C.column('DEPT_NM','부서명')];b.columns[0].selected=false;q.tables.push(b);
     const on=C.condition();on.left={table:a.id,column:a.columns[2].id};on.mode='column';on.right={table:b.id,column:b.columns[0].id};b.on.items.push(on);
     const w=C.condition();w.left={table:a.id,column:a.columns[3].id};w.value='Y';q.where.items.push(w);q.order.push({ref:{table:a.id,column:a.columns[0].id},direction:'ASC'});
+    p.sampleData[a.id]=[['1001','홍길동','D01','Y'],['1002','김영희','D02','Y'],['1003','이철수','D01','N']];p.sampleData[b.id]=[['D01','개발팀'],['D02','운영팀']];
     navigate(q,a);
   };
   $('aggregate-example').onclick=()=>{
@@ -249,6 +296,7 @@
     const count=C.addCountAll(a);count.output='EMP_CNT';
     const h=C.condition();h.left={table:a.id,column:count.id,outputRef:true};h.op='>=';h.type='number';h.value='10';q.having.items.push(h);
     q.order.push({ref:{table:a.id,column:a.columns[1].id,outputRef:true},direction:'DESC'});
+    p.sampleData[a.id]=[['D01','100'],['D01','200'],['D02','300'],['D02','400'],['D02','500']];h.value='2';
     navigate(q,a);
   };
   $('window-example').onclick=()=>{
@@ -258,7 +306,7 @@
     const department={table:t.id,column:t.columns[1].id},salary={table:t.id,column:t.columns[2].id};
     const total=C.duplicateOutput(t,t.columns[2].id);total.output='DEPT_TOTAL_SALARY';total.window=C.windowSpec('SUM');total.window.partition=[department];
     const rank=C.duplicateOutput(t,t.columns[2].id);rank.output='DEPT_SALARY_RANK';rank.window=C.windowSpec('RANK');rank.window.partition=[department];rank.window.order=[{ref:salary,direction:'DESC'}];
-    q.order=[{ref:department,direction:'ASC'},{ref:salary,direction:'DESC'}];navigate(q,t);
+    q.order=[{ref:department,direction:'ASC'},{ref:salary,direction:'DESC'}];p.sampleData[t.id]=[['1001','D01','100'],['1002','D01','200'],['1003','D02','300'],['1004','D02','500']];navigate(q,t);
   };
   render();
 })();
