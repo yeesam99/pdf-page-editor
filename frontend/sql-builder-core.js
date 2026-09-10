@@ -8,7 +8,9 @@
   const column = (name='',description='') => ({id:uid(),name,description,selected:true,output:'',value:'',valueType:'text',aggregate:''});
   const table = (alias='A') => ({id:uid(),name:'',alias,join:'LEFT JOIN',on:group(),columns:[],query:null});
   const query = (alias='A') => ({id:uid(),tables:[table(alias)],where:group(),having:group(),order:[]});
-  const project = () => ({version:1,dialect:'tibero',mode:'SELECT',quote:false,sampleData:{},root:query()});
+  const ddlColumn = (name='',description='',newDescription='',dataType='',size='') => ({id:uid(),name,description,newDescription,dataType,size,nullable:true,defaultValue:'',pk:false,index:false,unique:false});
+  const ddlConfig = () => ({tableName:'',tableDescription:'',columns:[]});
+  const project = () => ({version:1,dialect:'tibero',mode:'SELECT',quote:false,sampleData:{},ddl:ddlConfig(),root:query()});
   const ops = ['=','!=','>','>=','<','<=','LIKE','NOT LIKE','IN','NOT IN','BETWEEN','NOT BETWEEN','IS NULL','IS NOT NULL','EXISTS','NOT EXISTS'];
   const aggregates=['','SUM','COUNT','COUNT_DISTINCT','AVG','MIN','MAX','COUNT_ALL'];
   const windowFunctions=['SUM','COUNT','AVG','MIN','MAX','COUNT_ALL','ROW_NUMBER','RANK','DENSE_RANK'];
@@ -109,11 +111,79 @@
     if(clean.length && /^(컬럼명|컬럼|column_name|column name|column)$/i.test(clean[0][0]))clean.shift();
     return clean.map(r=>column(r[0],r[1]||''));
   }
+  function parseDdlPaste(text,dialect='tibero',change=false){
+    const rows=[];let row=[],cell='',quoted=false;
+    const src=String(text).replace(/^\uFEFF/,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    for(let i=0;i<src.length;i++){const ch=src[i];if(ch==='"'&&(quoted||cell==='')){if(quoted&&src[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(!quoted&&(ch==='\t'||ch==='\n')){row.push(cell);cell='';if(ch==='\n'){rows.push(row);row=[];}}else cell+=ch;}
+    row.push(cell);rows.push(row);
+    const clean=rows.filter(r=>r.some(c=>c.trim())).map(r=>r.map(c=>c.trim()));
+    if(clean.length&&/^(컬럼영문|영문컬럼|컬럼명|column_name|column name|column)$/i.test(clean[0][0]))clean.shift();
+    const defaultType=dialect==='mssql'?'NVARCHAR':dialect==='mysql'?'VARCHAR':'VARCHAR2';
+    return clean.map(r=>change?ddlColumn(r[0],r[1]||'',r[2]||'',r[3]||'',r[4]||''):ddlColumn(r[0],r[1]||'','',r[2]||defaultType,r[3]||(r[2]?'':'200')));
+  }
   function generate(p){
     const errors=[],params=[];
     const err=s=>{if(!errors.includes(s))errors.push(s);};
     const quote=s=>p.dialect==='mysql'?'`'+s.replace(/`/g,'``')+'`':p.dialect==='mssql'?'['+s.replace(/]/g,']]')+']':'"'+s.replace(/"/g,'""')+'"';
     function ident(s,what='이름',path=false){s=String(s||'').trim();if(!s){err(what+'을 입력하세요.');return '__미입력__';}return (path?s.split('.'):[s]).map(part=>{if(!part){err(what+'에 빈 식별자가 있습니다.');return '__미입력__';}if(p.quote)return quote(part);if(!/^[\p{L}_][\p{L}\p{N}_$#]*$/u.test(part)){err(what+': 공백·특수문자는 식별자 따옴표 설정이 필요합니다.');return '__이름확인__';}return part;}).join('.');}
+    const literal=s=>(p.dialect==='mssql'?'N':'')+"'"+String(s??'').replace(/'/g,"''")+"'";
+    function ddlType(c,required=true){
+      const type=String(c.dataType||'').trim().toUpperCase(),size=String(c.size||'').trim();
+      if(!type){if(required)err(c.name+': 자료형을 입력하세요.');return '__자료형__';}
+      if(!/^[A-Z][A-Z0-9_]*(?:\s+[A-Z0-9_]+)*$/.test(type)){err(c.name+': 자료형은 괄호 없이 입력하고 길이·정밀도는 별도 칸에 입력하세요.');return '__자료형확인__';}
+      if(size&&!/^\d+(?:\s*,\s*\d+)?$/.test(size)){err(c.name+': 길이는 200 또는 10,2처럼 입력하세요.');return type+'(__길이확인__)';}
+      return type+(size?'('+size.replace(/\s/g,'')+')':'');
+    }
+    function ddlDefault(c){
+      const v=String(c.defaultValue||'').trim();
+      if(!v)return '';
+      if(/[;\r\n]/.test(v)||/--|\/\*/.test(v)){err(c.name+': 기본값에는 세미콜론·주석·줄바꿈을 사용할 수 없습니다.');return ' DEFAULT __기본값확인__';}
+      return ' DEFAULT '+v;
+    }
+    function mssqlParts(raw){
+      const parts=String(raw||'').trim().split('.');
+      if(parts.length>2){err('MSSQL 설명 구문은 테이블명을 TABLE 또는 SCHEMA.TABLE 형식으로 입력하세요.');return {schema:'dbo',table:parts.at(-1)||'__미입력__'};}
+      return parts.length===2?{schema:parts[0],table:parts[1]}:{schema:'dbo',table:parts[0]||'__미입력__'};
+    }
+    function mssqlProperty(raw,columnName,description,change){
+      const names=mssqlParts(raw),args=`N'MS_Description', N'SCHEMA', ${literal(names.schema)}, N'TABLE', ${literal(names.table)}, N'COLUMN', ${literal(columnName)}`;
+      const call=verb=>`EXEC sys.sp_${verb}extendedproperty\n     @name = N'MS_Description'\n   , @value = ${literal(description)}\n   , @level0type = N'SCHEMA', @level0name = ${literal(names.schema)}\n   , @level1type = N'TABLE',  @level1name = ${literal(names.table)}\n   , @level2type = N'COLUMN', @level2name = ${literal(columnName)};`;
+      if(!change)return call('add');
+      return `IF EXISTS (SELECT 1 FROM sys.fn_listextendedproperty(${args}))\nBEGIN\n    ${call('update').replace(/\n/g,'\n    ')}\nEND\nELSE\nBEGIN\n    ${call('add').replace(/\n/g,'\n    ')}\nEND;`;
+    }
+    function generateDdl(){
+      const d=p.ddl||ddlConfig(),rawName=String(d.tableName||'').trim(),name=ident(rawName,'테이블명',true),cols=d.columns||[];
+      if(!cols.length)err('컬럼을 하나 이상 추가하세요.');
+      const names=cols.map(c=>String(c.name||'').trim().toUpperCase());
+      cols.forEach(c=>ident(c.name,'컬럼명'));
+      if(new Set(names).size!==names.length)err('컬럼명이 중복됩니다.');
+      if(p.mode==='COMMENT'){
+        const targets=cols.filter(c=>String(c.newDescription||'').trim());
+        if(!targets.length)err('바뀔 한글명을 하나 이상 입력하세요.');
+        return targets.map(c=>{
+          const col=ident(c.name,'컬럼명');
+          if(p.dialect==='mssql')return mssqlProperty(rawName,c.name,c.newDescription,true);
+          if(p.dialect==='mysql')return `ALTER TABLE ${name}\n MODIFY COLUMN ${col} ${ddlType(c)}${c.nullable?'':' NOT NULL'}${ddlDefault(c)} COMMENT ${literal(c.newDescription)};`;
+          return `COMMENT ON COLUMN ${name}.${col} IS ${literal(c.newDescription)};`;
+        }).join('\n\n')||'-- 바뀔 한글명을 입력하세요.';
+      }
+      const pk=cols.filter(c=>c.pk),indexes=cols.filter(c=>c.index),uniques=cols.filter(c=>c.unique),base=rawName.split('.').pop().replace(/[^\p{L}\p{N}_]/gu,'_')||'TABLE';
+      const definitions=cols.map(c=>{const required=c.nullable&&!c.pk?'':' NOT NULL',fallback=ddlDefault(c);return ident(c.name,'컬럼명')+' '+ddlType(c)+(p.dialect==='mssql'||p.dialect==='mysql'?required+fallback:fallback+required)+(p.dialect==='mysql'&&c.description?' COMMENT '+literal(c.description):'');});
+      if(pk.length)definitions.push('CONSTRAINT '+ident('PK_'+base,'PK 제약조건명')+' PRIMARY KEY ('+pk.map(c=>ident(c.name,'컬럼명')).join(', ')+')');
+      if(p.dialect==='mysql'&&uniques.length)definitions.push('UNIQUE KEY '+ident('UX_'+base+'_01','UNIQUE 인덱스명')+' ('+uniques.map(c=>ident(c.name,'컬럼명')).join(', ')+')');
+      if(p.dialect==='mysql'&&indexes.length)definitions.push('INDEX '+ident('IX_'+base+'_01','인덱스명')+' ('+indexes.map(c=>ident(c.name,'컬럼명')).join(', ')+')');
+      let sql='CREATE TABLE '+name+' (\n    '+definitions.join('\n  , ')+'\n)'+(p.dialect==='mysql'&&d.tableDescription?' COMMENT='+literal(d.tableDescription):'')+';';
+      if(p.dialect!=='mysql'&&uniques.length)sql+='\n\nCREATE UNIQUE INDEX '+ident('UX_'+base+'_01','UNIQUE 인덱스명')+' ON '+name+' ('+uniques.map(c=>ident(c.name,'컬럼명')).join(', ')+');';
+      if(p.dialect!=='mysql'&&indexes.length)sql+='\n\nCREATE INDEX '+ident('IX_'+base+'_01','인덱스명')+' ON '+name+' ('+indexes.map(c=>ident(c.name,'컬럼명')).join(', ')+');';
+      if(p.dialect==='mssql'){
+        if(d.tableDescription){const n=mssqlParts(rawName);sql+=`\n\nEXEC sys.sp_addextendedproperty\n     @name = N'MS_Description'\n   , @value = ${literal(d.tableDescription)}\n   , @level0type = N'SCHEMA', @level0name = ${literal(n.schema)}\n   , @level1type = N'TABLE',  @level1name = ${literal(n.table)};`;}
+        cols.filter(c=>c.description).forEach(c=>{sql+='\n\n'+mssqlProperty(rawName,c.name,c.description,false);});
+      }else if(p.dialect!=='mysql'){
+        if(d.tableDescription)sql+='\n\nCOMMENT ON TABLE '+name+' IS '+literal(d.tableDescription)+';';
+        cols.filter(c=>c.description).forEach(c=>{sql+='\nCOMMENT ON COLUMN '+name+'.'+ident(c.name,'컬럼명')+' IS '+literal(c.description)+';';});
+      }
+      return sql;
+    }
     function expression(t,c,scope=[]){
       if(c.window){
         const w=c.window;
@@ -214,7 +284,8 @@
       return sql;
     }
     let sql='';
-    if(p.mode==='SELECT')sql=select(p.root);
+    if(['CREATE','COMMENT'].includes(p.mode))sql=generateDdl();
+    else if(p.mode==='SELECT')sql=select(p.root);
     else{
       const q=p.root,t=q.tables[0];if(q.tables.length!==1||t.query)err('수정·등록·삭제는 일반 테이블 하나를 대상으로 설정하세요. 조회 모드의 JOIN을 먼저 정리하세요.');
       if(p.dialect==='mysql'&&['UPDATE','DELETE'].includes(p.mode)){
@@ -238,7 +309,7 @@
         const where=conditions(q.where,scope,0,'WHERE');if(where)sql+='\n WHERE '+where;
       }
     }
-    return {sql:sql+';',errors,params};
+    return {sql:sql+(['CREATE','COMMENT'].includes(p.mode)?'':';'),errors,params};
   }
   function validateProject(p){
     let count=0;const ids=new Set();const id=o=>{if(!o||typeof o.id!=='string'||ids.has(o.id))throw Error('설정 ID가 잘못되었거나 중복됩니다.');ids.add(o.id);};
@@ -284,12 +355,16 @@
       checkGroup(q.having,d+1);
       q.order.forEach(o=>{if(!o||!o.ref||!['ASC','DESC'].includes(o.direction))throw Error('정렬 설정을 확인하세요.');});
     }
-    if(!p||p.version!==1||!['tibero','oracle','mssql','mysql'].includes(p.dialect)||!['SELECT','UPDATE','INSERT','DELETE'].includes(p.mode)||typeof p.quote!=='boolean')throw Error('SQL 생성기 설정 파일이 아닙니다.');
+    if(!p||p.version!==1||!['tibero','oracle','mssql','mysql'].includes(p.dialect)||!['SELECT','UPDATE','INSERT','DELETE','CREATE','COMMENT'].includes(p.mode)||typeof p.quote!=='boolean')throw Error('SQL 생성기 설정 파일이 아닙니다.');
+    if(p.ddl===undefined)p.ddl=ddlConfig();
+    if(!p.ddl||typeof p.ddl!=='object'||Array.isArray(p.ddl)||!Array.isArray(p.ddl.columns)||p.ddl.columns.length>2000)throw Error('테이블 생성 설정을 확인하세요.');
+    ['tableName','tableDescription'].forEach(k=>str(p.ddl[k]??''));p.ddl.tableName=p.ddl.tableName??'';p.ddl.tableDescription=p.ddl.tableDescription??'';
+    p.ddl.columns.forEach(c=>{id(c);['name','description','newDescription','dataType','size','defaultValue'].forEach(k=>{if(c[k]===undefined)c[k]='';str(c[k]);});['nullable','pk','index','unique'].forEach(k=>{if(c[k]===undefined)c[k]=k==='nullable';if(typeof c[k]!=='boolean')throw Error('DDL 컬럼 설정을 확인하세요.');});});
     if(p.sampleData===undefined)p.sampleData={};
     if(!p.sampleData||typeof p.sampleData!=='object'||Array.isArray(p.sampleData))throw Error('예시 데이터 설정을 확인하세요.');
     let sampleCells=0;Object.entries(p.sampleData).forEach(([tableId,rows])=>{str(tableId);if(!Array.isArray(rows)||rows.length>1000)throw Error('예시 데이터는 표당 최대 1,000행입니다.');rows.forEach(row=>{if(!Array.isArray(row)||row.length>2000)throw Error('예시 데이터 행을 확인하세요.');row.forEach(cell=>{if(++sampleCells>200000)throw Error('예시 데이터 규모가 너무 큽니다.');if(cell!==null&&typeof cell!=='string'&&typeof cell!=='number')throw Error('예시 데이터 값 형식을 확인하세요.');});});});
     checkQuery(p.root,0);return p;
   }
-  const api={uid,group,condition,column,table,query,project,ops,aggregates,windowFunctions,ranking,windowSpec,havingOps,children,walkGroup,findQuery,queryParent,deleteSubquery,findNode,exportsOf,refs,outputRefs,outputName,outputExpression,setOutput,duplicateOutput,addCountAll,parsePaste,generate,validateProject};
+  const api={uid,group,condition,column,ddlColumn,ddlConfig,table,query,project,ops,aggregates,windowFunctions,ranking,windowSpec,havingOps,children,walkGroup,findQuery,queryParent,deleteSubquery,findNode,exportsOf,refs,outputRefs,outputName,outputExpression,setOutput,duplicateOutput,addCountAll,parsePaste,parseDdlPaste,generate,validateProject};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.SQLBuilderCore=api;
 })(typeof window!=='undefined'?window:globalThis);

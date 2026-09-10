@@ -11,6 +11,7 @@
   const select=(node,key,list,value)=>`<select data-node="${esc(node.id)}" data-key="${key}" aria-label="${esc(key)}">${options(list,value)}</select>`;
   const valueTypes=[['text','문자'],['number','숫자'],['bind','바인드 변수'],['null','NULL']];
   const aggregateOptions=[['','일반 컬럼'],['SUM','SUM · 합계'],['COUNT','COUNT · 값 개수'],['COUNT_DISTINCT','COUNT · 중복 제외'],['AVG','AVG · 평균'],['MIN','MIN · 최솟값'],['MAX','MAX · 최댓값']];
+  const ddlModes=['CREATE','COMMENT'];
   let windowColumn=null;
   function ctx(){return C.findQuery(p.root,currentQ)||{query:p.root,ancestors:[]};}
   function table(){return ctx().query.tables.find(t=>t.id===currentT)||ctx().query.tables[0];}
@@ -30,10 +31,25 @@
   function refLabel(r){const found=(r?.outputRef?C.outputRefs(ctx().query):C.refs(ctx().query,ctx().ancestors)).find(x=>x.table===r?.table&&x.column===r?.column);return found?`${found.outputRef?'':found.alias+'.'}${found.name}${found.description?' · '+found.description:''}`:r?'다시 선택 (참조 없음)':'컬럼 찾기';}
   function isHaving(id){let found=false;if(ctx().query.having)C.walkGroup(ctx().query.having,n=>{if(n.id===id)found=true;});return found;}
   function renderTree(){
+    if(ddlModes.includes(p.mode)){$('tree').innerHTML=`<div class="tree-query"><div class="tree-label">DDL 작업</div><button class="tree-node selected"><strong>${p.mode==='CREATE'?'CREATE TABLE':'컬럼 한글명 변경'}</strong><small>${esc(p.ddl.tableName||'테이블명 입력')} · ${p.ddl.columns.length}개 컬럼</small></button></div>`;$('table-count').textContent=p.ddl.columns.length+'개';return;}
     function draw(q,depth=0,label='메인 조회'){
       return `<div class="tree-query"><div class="tree-heading"><div class="tree-label">${esc(label)}</div>${depth?`<button type="button" class="tree-delete" data-delete-query="${esc(q.id)}" aria-label="${esc(label)} 삭제" title="이 하위 조회 전체 삭제">삭제</button>`:''}</div>${q.tables.map((t,i)=>`<button class="tree-node ${q.id===currentQ&&t.id===currentT?'selected':''}" data-q="${esc(q.id)}" data-t="${esc(t.id)}"><strong>${esc(t.alias||'?')}</strong> · ${esc(t.query?'하위 조회표':t.name||'테이블명 입력')}<small>${i?esc(t.join):'MAIN'} · ${C.exportsOf(t).length}개 컬럼${!t.query?` · ${(p.sampleData?.[t.id]||[]).length}행 예시`:''}</small></button>`).join('')}${C.children(q).map(c=>draw(c.query,depth+1,c.kind==='derived'?`JOIN 하위 조회 · ${c.owner.alias}`:c.kind+' 하위 조회')).join('')}</div>`;
     }
     $('tree').innerHTML=draw(p.root);$('table-count').textContent=allQueries().reduce((n,q)=>n+q.tables.length,0)+'개';
+  }
+  function ddlTypeOptions(){return p.dialect==='mssql'?['NVARCHAR','VARCHAR','CHAR','INT','BIGINT','DECIMAL','NUMERIC','DATE','DATETIME2','BIT','TEXT']:p.dialect==='mysql'?['VARCHAR','CHAR','INT','BIGINT','DECIMAL','DATE','DATETIME','TIMESTAMP','TEXT','JSON']:['VARCHAR2','NVARCHAR2','CHAR','NUMBER','INTEGER','DATE','TIMESTAMP','CLOB','BLOB'];}
+  function ddlField(c,key,value,extra=''){return `<input data-ddl-id="${esc(c.id)}" data-ddl-key="${key}" value="${esc(value)}" ${extra}>`;}
+  function ddlRows(){
+    const change=p.mode==='COMMENT',mysql=change&&p.dialect==='mysql';
+    return p.ddl.columns.map((c,i)=>`<tr data-ddl-row="${esc(c.id)}"><td>${i+1}</td><td>${ddlField(c,'name',c.name,'aria-label="컬럼영문"')}</td><td>${ddlField(c,'description',c.description,'aria-label="현재 컬럼한글"')}</td>${change?`<td>${ddlField(c,'newDescription',c.newDescription,'aria-label="바뀔 한글명"')}</td>`:''}${!change||mysql?`<td><input list="ddl-types" data-ddl-id="${esc(c.id)}" data-ddl-key="dataType" value="${esc(c.dataType)}" aria-label="자료형"></td><td>${ddlField(c,'size',c.size,'placeholder="200 또는 10,2" aria-label="길이 또는 정밀도"')}</td><td><label class="mini-check"><input type="checkbox" data-ddl-id="${esc(c.id)}" data-ddl-key="nullable" ${c.nullable?'checked':''}> 허용</label></td><td>${ddlField(c,'defaultValue',c.defaultValue,`placeholder="${change?'현재 기본값':'예: 0 또는 \'Y\''}" aria-label="기본값 SQL"`)}</td>`:''}${!change?`<td><input type="checkbox" data-ddl-id="${esc(c.id)}" data-ddl-key="pk" ${c.pk?'checked':''} aria-label="PK 선택"></td><td><input type="checkbox" data-ddl-id="${esc(c.id)}" data-ddl-key="index" ${c.index?'checked':''} aria-label="인덱스 선택"></td><td><input type="checkbox" data-ddl-id="${esc(c.id)}" data-ddl-key="unique" ${c.unique?'checked':''} aria-label="UNIQUE 선택"></td>`:''}<td><div class="row-buttons">${btn('ddl-up','↑',`data-id="${esc(c.id)}" aria-label="위로"`)}${btn('ddl-down','↓',`data-id="${esc(c.id)}" aria-label="아래로"`)}${btn('ddl-delete','×',`data-id="${esc(c.id)}" aria-label="삭제"`,'danger')}</div></td></tr>`).join('')||`<tr><td colspan="${change?(mysql?9:5):11}" class="empty">Excel 내용을 붙여넣거나 빈 행을 추가하세요.</td></tr>`;
+  }
+  function renderDdlEditor(){
+    const change=p.mode==='COMMENT',mysql=change&&p.dialect==='mysql',defaultType=p.dialect==='mssql'?'NVARCHAR':p.dialect==='mysql'?'VARCHAR':'VARCHAR2',paste=change?'컬럼영문\t컬럼한글\t바뀔한글명':'컬럼영문\t컬럼한글\t자료형(선택)\t길이(선택)';
+    $('editor').innerHTML=`<div class="breadcrumb">DDL / ${change?'컬럼 한글명 변경':'CREATE TABLE'}</div><div class="editor-title"><h2>${change?'컬럼 한글명 변경 SQL':'테이블 생성 SQL'}</h2><span class="badge">브라우저 내부 생성</span></div>
+      <div class="section"><div class="section-title"><h3>테이블 설정</h3></div><div class="fields"><label class="field">테이블명<input data-ddl-root="tableName" value="${esc(p.ddl.tableName)}" placeholder="TB_EMP 또는 SCHEMA.TB_EMP"></label>${!change?`<label class="field">테이블 한글명<input data-ddl-root="tableDescription" value="${esc(p.ddl.tableDescription)}" placeholder="직원 기본정보"></label>`:''}</div></div>
+      <div class="section"><div class="section-title"><h3>${change?'변경할 컬럼':'생성할 컬럼'}</h3><span class="muted">${p.ddl.columns.length}개</span></div><p class="hint">Excel에서 <b>${change?'컬럼영문 / 컬럼한글 / 바뀔한글명':'컬럼영문 / 컬럼한글'}</b>${change?'':'을 기본으로, 자료형과 길이를 선택적으로 추가해'} 복사하세요.</p><textarea id="ddl-paste" class="paste" placeholder="${esc(paste+'\nEMP_ID\t사원번호'+(change?'\t직원번호':'\t'+defaultType+'\t20'))}"></textarea><div class="toolbar">${btn('ddl-paste-add','붙여넣은 컬럼 추가')}${btn('ddl-add','+ 빈 행 추가')}${btn('ddl-clear','전체 지우기','','danger')}</div>
+      ${!change?'<p class="hint">PK·인덱스·UNIQUE를 여러 행에 체크하면 화면 순서대로 각각 하나의 복합 키/인덱스를 생성합니다. PK 컬럼은 자동으로 NOT NULL 처리됩니다. 기본값은 따옴표를 포함한 SQL 표현식으로 입력하세요.</p>':mysql?'<p class="danger-hint">MySQL은 COMMENT만 단독 변경할 수 없어 현재 자료형·길이·NULL 허용·기본값을 정확히 입력해야 합니다. 잘못 입력하면 컬럼 정의가 바뀔 수 있습니다.</p>':'<p class="hint">바뀔 한글명이 입력된 행만 COMMENT 변경 구문을 생성합니다. 기존 한글명은 확인용이며 SQL에는 사용하지 않습니다.</p>'}
+      <datalist id="ddl-types">${ddlTypeOptions().map(t=>`<option value="${t}"></option>`).join('')}</datalist><div class="table-wrap ddl-table-wrap"><table class="ddl-table"><thead><tr><th>#</th><th>컬럼영문</th><th>${change?'기존 한글명':'컬럼한글'}</th>${change?'<th>바뀔 한글명</th>':''}${!change||mysql?'<th>자료형</th><th>길이·정밀도</th><th>NULL</th><th>기본값 SQL</th>':''}${!change?'<th>PK</th><th>INDEX</th><th>UNIQUE</th>':''}<th>행</th></tr></thead><tbody>${ddlRows()}</tbody></table></div></div>`;
   }
   function selectedColumns(t){return C.exportsOf(t).filter(c=>c.selected);}
   function sampleColumns(t){const out=[];t.columns.filter(c=>c.aggregate!=='COUNT_ALL'&&c.name!=='*').forEach(c=>{if(c.name&&!out.some(x=>x.name.toUpperCase()===c.name.toUpperCase()))out.push(c);});return out;}
@@ -91,6 +107,7 @@
   function subLink(n){return `<div class="sub-link"><span>${esc(n.op)} · ${n.query?esc(n.query.tables[0].name||'테이블 설정 필요'):'하위 조회 없음'}</span><div class="row-buttons">${btn('open-sub','하위 조회 편집',`data-id="${esc(n.id)}"`)}${n.query?`<button type="button" class="danger" data-delete-query="${esc(n.query.id)}">조건·하위 조회 삭제</button>`:''}</div></div>`;}
   function renderOrder(q){return `<div class="section"><div class="section-title"><h3>정렬 ORDER BY</h3>${btn('order-add','+ 컬럼 선택')}</div>${q.order.map((o,i)=>`<div class="order-row"><span class="muted">${i+1}.</span>${btn('order-pick',esc(refLabel(o.ref)),`data-index="${i}"`,'pick')}<select data-order="${i}" aria-label="정렬 방향">${options([['ASC','오름차순'],['DESC','내림차순']],o.direction)}</select>${btn('order-up','↑',`data-index="${i}" aria-label="정렬 우선순위 올리기"`)}${btn('order-delete','×',`data-index="${i}" aria-label="정렬 삭제"`)}</div>`).join('')||'<p class="hint">출력 여부와 관계없이 정렬할 컬럼을 선택할 수 있습니다.</p>'}</div>`;}
   function renderEditor(){
+    if(ddlModes.includes(p.mode)){renderDdlEditor();return;}
     const {query:q}=ctx(),t=table(),index=q.tables.indexOf(t),m=mode();
     const isRoot=q.id===p.root.id,parentLink=isRoot?null:C.queryParent(p.root,q.id);
     $('editor').innerHTML=`${parentLink?`<div class="sub-navigation"><span>${esc(parentLink.kind==='derived'?'JOIN 하위 조회 · '+parentLink.owner.alias:parentLink.kind+' 하위 조회')}</span><div class="row-buttons">${btn('parent-query','← 상위 설정')}<button type="button" class="danger" data-delete-query="${esc(q.id)}">이 하위 조회 삭제</button></div></div>`:''}<div class="breadcrumb">${isRoot?'메인 쿼리':'하위 조회'} / ${esc(t.alias||'별칭 입력')}</div><div class="editor-title"><h2>${esc(t.query?'JOIN 하위 조회표':t.name||'테이블 설정')}</h2>${m==='SELECT'?`<div class="row-buttons">${btn('table-add','+ 동일 표 (JOIN)')}${btn('derived-add','+ 하위 조회표')}</div>`:''}</div>
@@ -102,7 +119,7 @@
       ${m==='SELECT'&&isRoot?renderOrder(q):''}
       ${m==='SELECT'&&!isRoot?'<p class="hint">하위 조회를 설정한 뒤 왼쪽 트리에서 상위 테이블로 돌아가세요.</p>':''}`;
   }
-  function highlight(sql){return sql.split(/(--[^\n]*|'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE)\b)/g).map(s=>s.startsWith('--')?`<span class="comment">${esc(s)}</span>`:s.startsWith("'")?`<span class="string">${esc(s)}</span>`:/^(SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE)$/.test(s)?`<span class="keyword">${s}</span>`:esc(s)).join('');}
+  function highlight(sql){return sql.split(/(--[^\n]*|'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|ALTER|MODIFY|COLUMN|COMMENT|CONSTRAINT|PRIMARY|KEY|INDEX|UNIQUE|DEFAULT|EXEC|IF|BEGIN|END|ELSE)\b)/g).map(s=>s.startsWith('--')?`<span class="comment">${esc(s)}</span>`:s.startsWith("'")?`<span class="string">${esc(s)}</span>`:/^(SELECT|FROM|WHERE|AS|ON|JOIN|INNER|LEFT|RIGHT|FULL|CROSS|AND|OR|NOT|IN|EXISTS|BETWEEN|IS|NULL|LIKE|ORDER|OVER|PARTITION|ROWS|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|ROW_NUMBER|RANK|DENSE_RANK|GROUP|HAVING|SUM|COUNT|AVG|MIN|MAX|DISTINCT|BY|ASC|DESC|INSERT|INTO|VALUES|UPDATE|SET|DELETE|CREATE|TABLE|ALTER|MODIFY|COLUMN|COMMENT|CONSTRAINT|PRIMARY|KEY|INDEX|UNIQUE|DEFAULT|EXEC|IF|BEGIN|END|ELSE)$/.test(s)?`<span class="keyword">${s}</span>`:esc(s)).join('');}
   function formatResult(v){if(v===null||v===undefined)return '<span class="null-value">NULL</span>';if(typeof v==='number'&&Number.isFinite(v))return esc(Number.isInteger(v)?v:Number(v.toFixed(8)));return esc(v);}
   function calculateResult(sqlErrors=[]){
     clearTimeout(calcTimer);calcTimer=setTimeout(()=>{
@@ -133,8 +150,9 @@
     pruneSamples();
     const wrap=document.querySelector('.table-wrap'),position=renderedTable===currentT&&wrap?{top:wrap.scrollTop,left:wrap.scrollLeft}:null;
     $('dialect').value=p.dialect;$('quote').checked=p.quote;
-    $('modes').innerHTML=[['SELECT','조회'],['UPDATE','수정'],['INSERT','등록'],['DELETE','삭제']].map(([v,s])=>`<button data-mode="${v}" class="${p.mode===v?'active-mode':''}" aria-pressed="${p.mode===v}">${s} <b>${v}</b></button>`).join('');
+    $('modes').innerHTML=[['SELECT','조회'],['UPDATE','수정'],['INSERT','등록'],['DELETE','삭제'],['CREATE','테이블 생성'],['COMMENT','한글명 변경']].map(([v,s])=>`<button data-mode="${v}" class="${p.mode===v?'active-mode':''}" aria-pressed="${p.mode===v}">${s} <b>${v==='CREATE'?'CREATE TABLE':v==='COMMENT'?'COMMENT':v}</b></button>`).join('');
     renderTree();renderEditor();preview();
+    document.querySelector('.result-panel').hidden=p.mode!=='SELECT';
     renderedTable=currentT;const nextWrap=document.querySelector('.table-wrap');if(position&&nextWrap){nextWrap.scrollTop=position.top;nextWrap.scrollLeft=position.left;}
   }
   function availableRefs(targetId){
@@ -191,14 +209,16 @@
   $('sample-done').onclick=()=>{$('sample-dialog').close();preview();};
   $('auto-calc').onchange=()=>calculateResult(C.generate(p).errors);
   $('tree').onclick=e=>{const remove=e.target.closest('[data-delete-query]');if(remove){deleteQuery(remove.dataset.deleteQuery);return;}const b=e.target.closest('[data-q]');if(!b)return;const q=C.findQuery(p.root,b.dataset.q)?.query;if(q)navigate(q,q.tables.find(t=>t.id===b.dataset.t));};
-  $('modes').onclick=e=>{const b=e.target.closest('[data-mode]');if(!b)return;if(b.dataset.mode!=='SELECT'&&(p.root.tables.length>1||p.root.tables[0].query)){notice('수정·등록·삭제는 메인 일반 테이블 하나일 때 사용할 수 있습니다.');return;}if(b.dataset.mode!=='SELECT'&&(selectedColumns(p.root.tables[0]).some(c=>c.aggregate||c.window)||p.root.having?.items.length)){notice('집계 출력·HAVING을 해제한 뒤 변경하거나 새 쿼리를 만들어 주세요.');return;}p.mode=b.dataset.mode;navigate(p.root,p.root.tables[0]);};
-  $('dialect').onchange=()=>{p.dialect=$('dialect').value;preview();};$('quote').onchange=()=>{p.quote=$('quote').checked;preview();};
+  $('modes').onclick=e=>{const b=e.target.closest('[data-mode]');if(!b)return;const target=b.dataset.mode;if(['UPDATE','INSERT','DELETE'].includes(target)&&(p.root.tables.length>1||p.root.tables[0].query)){notice('수정·등록·삭제는 메인 일반 테이블 하나일 때 사용할 수 있습니다.');return;}if(['UPDATE','INSERT','DELETE'].includes(target)&&(selectedColumns(p.root.tables[0]).some(c=>c.aggregate||c.window)||p.root.having?.items.length)){notice('집계 출력·HAVING을 해제한 뒤 변경하거나 새 쿼리를 만들어 주세요.');return;}p.mode=target;navigate(p.root,p.root.tables[0]);};
+  $('dialect').onchange=()=>{p.dialect=$('dialect').value;ddlModes.includes(p.mode)?render():preview();};$('quote').onchange=()=>{p.quote=$('quote').checked;preview();};
   function setSelected(t,c,on){C.setOutput(t,c.id,'selected',on);}
   function removeCondition(g,id){const i=g.items.findIndex(n=>n.id===id);if(i>=0){g.items.splice(i,1);return true;}return g.items.some(n=>n.kind==='group'&&removeCondition(n,id));}
   function ensureSub(n){if(!n.query){if(allQueries().length>=40){notice('하위 조회는 최대 40개까지 추가할 수 있습니다.');return false;}n.query=C.query(nextAlias());}return true;}
   function changeOperator(n,op){n.op=op;n.mode='literal';n.type='text';n.right=null;n.value='';n.second='';if(op.includes('EXISTS')){n.left=null;ensureSub(n);}else n.query=null;}
   $('editor').addEventListener('focusin',e=>{const el=e.target.closest('[data-node],[data-id]');const n=el?node(el.dataset.node||el.dataset.id):null;const r=n?.left;focusedRef=r?refLabel(r).split(' · ')[0]:n?.name&&table().columns.includes(n)?table().alias+'.'+n.name:null;preview();});
   $('editor').addEventListener('input',e=>{
+    if(e.target.dataset.ddlRoot){p.ddl[e.target.dataset.ddlRoot]=e.target.value;renderTree();preview();return;}
+    if(e.target.dataset.ddlId){const c=p.ddl.columns.find(c=>c.id===e.target.dataset.ddlId);if(c&&e.target.type!=='checkbox'){c[e.target.dataset.ddlKey]=e.target.value;preview();}return;}
     if(e.target.id==='column-filter'){filter=e.target.value;$('column-rows').innerHTML=columnRows(table());return;}
     const el=e.target;
     if(el.dataset.outputId&&el.tagName!=='SELECT'){C.setOutput(table(),el.dataset.outputId,el.dataset.outputKey,el.value);renderTree();preview();return;}
@@ -207,6 +227,7 @@
   });
   $('editor').addEventListener('change',e=>{
     const el=e.target;
+    if(el.dataset.ddlId){const c=p.ddl.columns.find(c=>c.id===el.dataset.ddlId);if(c){c[el.dataset.ddlKey]=el.type==='checkbox'?el.checked:el.value;if(el.dataset.ddlKey==='pk'&&el.checked)c.nullable=false;render();}return;}
     if(el.dataset.windowKey||el.dataset.windowOrder!==undefined){const c=C.exportsOf(table()).find(c=>c.id===windowColumn);if(!c?.window)return;const w=JSON.parse(JSON.stringify(c.window));if(el.dataset.windowKey)w[el.dataset.windowKey]=el.value;else w.order[+el.dataset.windowOrder].direction=el.value;C.setOutput(table(),c.id,'window',w);render();return;}
     if(el.dataset.outputId&&el.tagName==='SELECT'){C.setOutput(table(),el.dataset.outputId,el.dataset.outputKey,el.value);render();return;}
     if(el.dataset.colSelect){const t=table(),c=C.exportsOf(t).find(c=>c.id===el.dataset.colSelect);setSelected(t,c,el.checked);preview();return;}
@@ -225,7 +246,18 @@
   });
   $('editor').onclick=e=>{
     const remove=e.target.closest('[data-delete-query]');if(remove){deleteQuery(remove.dataset.deleteQuery);return;}
-    const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action,{query:q}=ctx(),t=table(),id=b.dataset.id,n=id?node(id):null;
+    const b=e.target.closest('[data-action]');if(!b)return;const a=b.dataset.action;
+    if(a.startsWith('ddl-')){
+      if(a==='ddl-paste-add'){const rows=C.parseDdlPaste($('ddl-paste').value,p.dialect,p.mode==='COMMENT');if(!rows.length){notice('컬럼 정보를 붙여넣어 주세요.');return;}if(p.ddl.columns.length+rows.length>2000){notice('최대 2,000개 컬럼까지 추가할 수 있습니다.');return;}const names=new Set(p.ddl.columns.map(c=>c.name.toUpperCase()));let updated=0;const unique=rows.filter(c=>{const key=c.name.toUpperCase(),existing=p.ddl.columns.find(x=>x.name.toUpperCase()===key);if(existing){if(p.mode==='COMMENT'){existing.description=c.description;existing.newDescription=c.newDescription;if(c.dataType)existing.dataType=c.dataType;if(c.size)existing.size=c.size;updated++;}return false;}if(names.has(key))return false;names.add(key);return true;});p.ddl.columns.push(...unique);notice(unique.length+'개 컬럼 추가'+(updated?' · '+updated+'개 변경값 반영':rows.length!==unique.length?' (중복 제외)':''));}
+      if(a==='ddl-add')p.ddl.columns.push(C.ddlColumn('','','',p.mode==='COMMENT'?'':p.dialect==='mssql'?'NVARCHAR':p.dialect==='mysql'?'VARCHAR':'VARCHAR2',p.mode==='COMMENT'?'':'200'));
+      if(a==='ddl-clear'&&p.ddl.columns.length){if(!confirm('DDL 컬럼을 모두 지울까요?'))return;p.ddl.columns=[];}
+      const i=p.ddl.columns.findIndex(c=>c.id===b.dataset.id);
+      if(a==='ddl-delete'&&i>=0)p.ddl.columns.splice(i,1);
+      if(a==='ddl-up'&&i>0)[p.ddl.columns[i-1],p.ddl.columns[i]]=[p.ddl.columns[i],p.ddl.columns[i-1]];
+      if(a==='ddl-down'&&i>=0&&i<p.ddl.columns.length-1)[p.ddl.columns[i+1],p.ddl.columns[i]]=[p.ddl.columns[i],p.ddl.columns[i+1]];
+      render();return;
+    }
+    const {query:q}=ctx(),t=table(),id=b.dataset.id,n=id?node(id):null;
     if(a==='parent-query'){const link=C.queryParent(p.root,q.id);if(link)navigate(link.parent,link.parent.tables.find(t=>t.id===link.tableId)||link.parent.tables[0]);return;}
     if(a==='table-add'||a==='derived-add'){
       const nt=C.table(nextAlias());if(a==='derived-add'){q.tables.push(nt);nt.query=C.query(nextAlias());navigate(nt.query,nt.query.tables[0]);}else{q.tables.push(nt);navigate(q,nt);}return;

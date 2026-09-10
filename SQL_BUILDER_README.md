@@ -5,19 +5,20 @@
 
 ## 적용
 
-이 ZIP의 `frontend` 안에 있는 아래 네 파일을 기존 프로젝트의 `frontend`에 추가하세요.
+이 ZIP의 `frontend` 안에 있는 아래 다섯 파일을 기존 프로젝트의 `frontend`에 추가하세요.
 프로젝트 폴더를 삭제하거나 PDF 편집기 파일을 교체할 필요는 없습니다.
 
 - sql-builder.html
 - sql-builder.css
 - sql-builder.js
 - sql-builder-core.js
+- sql-builder-preview.js
 
 프로젝트 루트에서 다음 명령을 실행합니다.
 
 ```powershell
-git add frontend/sql-builder.html frontend/sql-builder.css frontend/sql-builder.js frontend/sql-builder-core.js SQL_BUILDER_README.md
-git commit -m "Add visual SQL builder page"
+git add frontend/sql-builder.html frontend/sql-builder.css frontend/sql-builder.js frontend/sql-builder-core.js frontend/sql-builder-preview.js SQL_BUILDER_README.md
+git commit -m "Add create table and column comment builder"
 git push origin main
 ```
 
@@ -40,6 +41,48 @@ https://pdf-page-editor.onrender.com/sql-builder.html
 6. SELECT에서는 `동일 표 (JOIN)`로 표를 추가하고 ON 조건의 양쪽 컬럼을 검색 팝업으로 연결합니다.
 7. WHERE에 조건과 AND/OR 괄호 그룹을 추가합니다.
 8. 오류 안내가 없어지면 오른쪽의 `쿼리 복사`를 누릅니다. 미리보기는 읽기 전용입니다.
+
+## CREATE TABLE과 컬럼 한글명 변경 (v6)
+
+상단의 **테이블 생성 CREATE TABLE** 또는 **한글명 변경 COMMENT**를 선택합니다. 기존 SELECT·UPDATE·INSERT·DELETE 구성과 DDL 구성은 설정 JSON 안에 각각 유지되므로 작업 종류를 오가며 사용할 수 있습니다.
+
+### 테이블 생성
+
+1. 테이블명을 먼저 입력합니다. `TB_EMP` 또는 `SCHEMA.TB_EMP` 형식을 사용할 수 있습니다.
+2. Excel에서 `컬럼영문 / 컬럼한글` 두 열을 복사해 붙여넣습니다.
+3. 필요하면 세 번째와 네 번째 열에 `자료형 / 길이·정밀도`를 함께 붙여넣습니다.
+4. 자료형을 생략하면 Oracle·Tibero는 `VARCHAR2(200)`, MSSQL은 `NVARCHAR(200)`, MySQL은 `VARCHAR(200)`을 기본으로 추가합니다.
+5. 각 행에서 NULL 허용, 기본값, PK, INDEX, UNIQUE를 설정합니다. 기본값은 `0`, `'Y'`, `CURRENT_TIMESTAMP`처럼 실제 SQL 표현식으로 입력합니다.
+6. 여러 컬럼에 PK, INDEX 또는 UNIQUE를 체크하면 화면의 컬럼 순서대로 각각 하나의 복합 키 또는 복합 인덱스를 생성합니다. PK 컬럼은 자동으로 `NOT NULL` 처리됩니다.
+
+붙여넣기 예시:
+
+```text
+컬럼영문	컬럼한글	자료형	길이
+EMP_ID	사원번호	NUMBER	10
+EMP_NM	사원명	VARCHAR2	100
+REGT_DTM	등록일시	TIMESTAMP	
+```
+
+- Oracle·Tibero는 테이블 생성 뒤 `COMMENT ON TABLE/COLUMN`을 생성합니다.
+- MSSQL은 `MS_Description` 확장 속성 구문을 생성하며, 스키마를 생략하면 `dbo`를 사용합니다. 설명 구문을 사용하려면 테이블명은 `TABLE` 또는 `SCHEMA.TABLE`로 입력하세요.
+- MySQL은 `CREATE TABLE`의 테이블·컬럼 `COMMENT`와 내부 `INDEX` 구문을 생성합니다.
+- 인덱스 이름은 `IX_테이블명_01`, UNIQUE 인덱스는 `UX_테이블명_01`, PK 제약조건은 `PK_테이블명`으로 자동 생성합니다. 실제 프로젝트의 명명 규칙이나 DBMS 식별자 길이 제한에 맞게 복사 후 조정할 수 있습니다.
+
+### 컬럼 한글명 변경
+
+Excel에서 `컬럼영문 / 기존 컬럼한글 / 바뀔 한글명` 세 열을 붙여넣습니다. 바뀔 한글명이 있는 행만 변경 SQL에 포함됩니다. 기존 한글명은 비교·확인용이며 SQL 조건으로 사용하지 않습니다.
+
+```text
+컬럼영문	컬럼한글	바뀔한글명
+EMP_ID	사원번호	직원번호
+EMP_NM	사원명	직원명
+```
+
+- Oracle·Tibero는 새 설명으로 `COMMENT ON COLUMN`을 생성합니다.
+- MSSQL은 `MS_Description` 존재 여부에 따라 `sp_updateextendedproperty` 또는 `sp_addextendedproperty`를 실행하는 구문을 생성합니다.
+- MySQL은 컬럼 설명만 단독으로 변경할 수 없으므로 네 번째와 다섯 번째 Excel 열에 `현재 자료형 / 길이·정밀도`를 추가하고, 화면에서 NULL 허용과 기본값도 현재 정의와 정확히 같게 입력해야 합니다. 생성된 `MODIFY COLUMN`을 실행하면 입력한 정의가 함께 적용되므로 실제 테이블 정의를 먼저 확인하세요.
+- DDL은 브라우저에서 문자열로만 생성되며 서버나 DB로 전송·실행되지 않습니다.
 
 `JOIN 예제`를 누르면 사원·부서 JOIN 조회를 볼 수 있습니다. `집계 예제`는 부서별 급여 합계·평균·인원수와 HAVING을 보여줍니다. `분석 함수 예제`는 PARTITION BY 합계와 순위를 보여줍니다. 세 예제에는 예상 결과를 바로 확인할 수 있는 예시 데이터도 들어갑니다. 현재 구성을 바꾸므로 필요한 내용은 먼저 저장하세요.
 
@@ -228,6 +271,8 @@ v3에서는 집계 모델·생성기 검사 54개와 집계 SQL 실행 사례 18
 - [MySQL 매개변수 표기](https://dev.mysql.com/doc/c-api/8.0/en/mysql-stmt-prepare.html)
 
  v4에서는 분석 함수 모델·생성기 검사 37개와 SQLite 실행 사례 15개를 확인했습니다. 기존 집계 검사 54개도 통과했습니다. 실제 Oracle/Tibero/MSSQL/MySQL 연결 및 브라우저 조작 테스트는 수행하지 않았습니다.
+
+v6에서는 CREATE TABLE, 복합 PK·INDEX·UNIQUE, 테이블·컬럼 한글명, 컬럼 한글명 변경, Excel 헤더 인식, 기존 v5 JSON 보정 사례를 생성 모델에서 검사했습니다. HTML 자산 경로와 JavaScript 문법도 확인했습니다. 실제 Oracle·Tibero·MSSQL·MySQL 서버에 연결한 DDL 실행 검증과 자동 브라우저 조작 검증은 수행하지 않았습니다.
 
 분석 함수 문법 참고:
 - https://docs.oracle.com/en/database/oracle/oracle-database/26/sqlrf/Analytic-Functions.html
