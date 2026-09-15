@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SQL 생성기</title>
   <meta name="description" content="테이블과 조건을 조립하고 SQL을 복사하세요.">
-  <link rel="stylesheet" href="sql-builder.css?v=6">
-  <script defer src="sql-builder-core.js?v=6"></script>
-  <script defer src="sql-builder-preview.js?v=6"></script>
-  <script defer src="sql-builder.js?v=6"></script>
+  <link rel="stylesheet" href="sql-builder.css?v=7">
+  <script defer src="sql-builder-core.js?v=7"></script>
+  <script defer src="sql-builder-preview.js?v=7"></script>
+  <script defer src="sql-builder.js?v=7"></script>
 </head>
 <body>
+  <nav aria-label="도구 이동" style="display:flex;gap:18px;align-items:center;padding:10px 24px;background:#fff;border-bottom:1px solid #e3e8ef;font:13px Arial,'Malgun Gothic',sans-serif"><a href="index.html" style="color:#667085;text-decoration:none">PDF 편집기 ↗</a><span aria-current="page" style="color:#2563eb;font-weight:bold">SQL Builder</span><a href="text-art.html" style="color:#667085;text-decoration:none">특수문자 그림판 ↗</a></nav>
   <header class="topbar">
     <div class="brand"><span class="brand-icon">SQL</span><div><h1>SQL 생성기</h1><p>테이블과 조건으로 구성하는 쿼리</p></div></div>
     <div class="top-actions"><label>DBMS <select id="dialect"><option value="tibero">Tibero</option><option value="oracle">Oracle</option><option value="mssql">MSSQL</option><option value="mysql">MySQL</option></select></label><button id="save">설정 저장</button><button id="load">불러오기</button><button id="example">JOIN 예제</button><button id="aggregate-example">집계 예제</button><button id="window-example">분석 함수 예제</button><button id="reset">새 쿼리</button></div>
