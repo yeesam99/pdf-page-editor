@@ -98,5 +98,17 @@
     while(lines.length&&!lines[lines.length-1])lines.pop();
     return {text:lines.join('\n'),cols,rows,nonempty};
   }
-  root.TextArtCore={convert,dimensions,brailleMask};
+  // Test all three channels independently; saturated dark colors are not black.
+  // Do not mutate the source so changing the threshold can recover removed pixels.
+  function extractBlack(source, threshold=50) {
+    const n=Number(threshold),limit=Number.isFinite(n)?Math.max(0,Math.min(255,Math.round(n))):50;
+    const data=new Uint8ClampedArray(source.data.length);let count=0;
+    for(let i=0;i<data.length;i+=4){
+      if(source.data[i+3]>0&&source.data[i]<=limit&&source.data[i+1]<=limit&&source.data[i+2]<=limit){
+        data[i+3]=source.data[i+3];count++;
+      }
+    }
+    return {data,width:source.width,height:source.height,count};
+  }
+  root.TextArtCore={convert,dimensions,brailleMask,extractBlack};
 })(typeof window==='undefined'?globalThis:window);

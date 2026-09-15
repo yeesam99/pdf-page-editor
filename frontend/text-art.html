@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="마우스로 그리는 실시간 특수문자 그림판. 서버 전송 없이 그림을 텍스트 아트로 바꿔보세요.">
   <title>특수문자 그림판</title>
-  <link rel="stylesheet" href="text-art.css?v=1">
-  <script defer src="text-art-core.js?v=1"></script>
-  <script defer src="text-art.js?v=1"></script>
+  <link rel="stylesheet" href="text-art.css?v=2">
+  <script defer src="text-art-core.js?v=2"></script>
+  <script defer src="text-art.js?v=2"></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,7 +25,13 @@
           </div>
           <label class="range-label">굵기 <input id="brush" type="range" min="2" max="28" value="5"><output id="brush-value" for="brush">5</output></label>
         </div>
-        <div class="canvas-wrap" id="canvas-wrap"><canvas id="drawing" width="800" height="520" aria-label="마우스나 터치로 그림을 그리는 영역"></canvas></div>
+        <div class="black-controls">
+          <label class="range-label">검정 추출 범위 <input id="black-threshold" type="range" min="0" max="255" value="50"><output id="black-value" for="black-threshold">50</output></label>
+          <div><button id="exact-black">정확한 검정만</button><span id="black-rule">R·G·B 각각 50 이하</span></div>
+          <p>검정만 남기고 나머지는 제거해요. 0은 순수 검정, 255는 모든 색을 포함해요.</p>
+          <p id="black-status" aria-live="polite">이미지를 올리거나 그림을 그려보세요.</p>
+        </div>
+        <div class="canvas-wrap" id="canvas-wrap"><canvas id="drawing" width="800" height="520" aria-label="검정 픽셀만 표시되는 그림판. 흰 부분은 제거된 영역입니다."></canvas></div>
         <div class="canvas-footer"><div class="tool-group"><button id="undo" disabled title="Ctrl+Z">↶ 실행 취소</button><button id="redo" disabled title="Ctrl+Shift+Z">↷ 다시 실행</button><button id="clear">전체 지우기</button></div><label><input id="grid" type="checkbox"> 격자</label></div>
         <div class="examples"><span>무엇을 그릴지 고민된다면</span><button data-example="cat">고양이</button><button data-example="heart">하트</button><button data-example="house">집</button><button id="image-open">이미지 불러오기 ↥</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden></div>
       </section>
