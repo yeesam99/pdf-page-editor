@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf7f2"><title>몽글 블록 · 작은 아케이드</title><meta name="description" content="파스텔 블록을 쌓는 작은 아케이드. 혼자 즐기거나 같은 코드로 3분 점수에 도전하세요."><link rel="stylesheet" href="block-game.css?v=1"><script defer src="block-game-core.js?v=1"></script><script defer src="block-game.js?v=1"></script></head>
+<body>
+<header><a href="block-game.html" class="brand"><span class="brand-mark">▦</span> 몽글 블록 <small>tiny arcade</small></a><nav aria-label="도구 이동"><a href="index.html">PDF 편집기</a><a href="sql-builder.html">SQL Builder</a><a href="text-art.html">특수문자 그림판</a></nav></header>
+<main>
+  <div class="intro"><div><span class="eyebrow">A LITTLE BREAK, ONE BLOCK AT A TIME</span><h1>오늘도 몽글몽글.</h1><p>차곡차곡 쌓고, 한 줄씩 가볍게 비워요.</p></div><span class="cloud" aria-hidden="true">☁<i>·ᴗ·</i></span></div>
+  <div class="arcade">
+    <aside class="left-stack">
+      <section class="card setup"><h2><span>✦</span> 오늘의 플레이</h2><div class="mode-switch" role="group" aria-label="게임 모드"><button data-mode="classic" aria-pressed="true">기본 모드</button><button data-mode="challenge" aria-pressed="false">3분 도전</button></div><p id="mode-description">천천히 시작해서 점점 빠르게.<br>블록이 천장에 닿기 전까지 즐겨요.</p><div id="challenge-options" hidden><label for="challenge-code">친구와 같은 도전 코드</label><div class="code-row"><input id="challenge-code" maxlength="24" value="MONGLE" autocomplete="off" spellcheck="false"><button id="new-code" aria-label="새 도전 코드">↻</button></div><button id="copy-link" class="link-button">도전 링크 복사 ↗</button><p>같은 코드 = 같은 블록 순서<br>3분은 일시정지를 제외한 플레이 시간이에요.</p></div></section>
+      <section class="card records"><h2>나의 최고 기록 <span>♕</span></h2><strong id="best">0</strong><p id="storage-note">이 브라우저에 저장돼요</p></section>
+      <section class="card instructions"><h2>손끝으로 가볍게</h2><dl><div><dt>이동</dt><dd>← →</dd></div><div><dt>회전</dt><dd>↑ / X · 반대 Z</dd></div><div><dt>빠르게 내리기</dt><dd>↓</dd></div><div><dt>바로 떨어뜨리기</dt><dd>Space</dd></div><div><dt>블록 보관</dt><dd>C / Shift</dd></div><div><dt>일시정지</dt><dd>P / Esc</dd></div></dl><p>10줄마다 레벨 UP!<br>바닥에 닿아도 잠깐 움직일 수 있어요.</p></section>
+    </aside>
+    <section class="machine" aria-label="블록 게임">
+      <div class="machine-top"><span><i></i> <span id="play-label">READY TO PLAY</span></span><button id="pause" aria-label="일시정지" disabled>Ⅱ</button></div>
+      <div class="board-wrap"><canvas id="board" width="300" height="600" tabindex="0" aria-label="블록 게임판. 방향키로 이동, Space로 떨어뜨리기, C로 보관."></canvas><div id="overlay" class="overlay"><span class="overlay-face" aria-hidden="true">▦</span><p id="overlay-eyebrow">LET'S STACK SOME JOY</p><h2 id="overlay-title">작은 블록, 큰 즐거움</h2><p id="overlay-message">착지할 자리를 보고<br>마음에 드는 곳에 톡!</p><button id="start" class="primary">플레이 시작 <span>→</span></button><button id="share-result" hidden>기록 복사</button></div></div>
+      <div class="machine-bottom"><span id="feedback" role="status">조금씩 쌓아볼까요?</span><span aria-hidden="true">✦ ✦ ✦</span></div>
+    </section>
+    <aside class="right-stack">
+      <section class="card score-card"><h2>SCORE <span>✧</span></h2><strong id="score">0</strong><div class="stats"><div><span>LEVEL</span><b id="level">01</b></div><div><span>LINES</span><b id="lines">0</b></div></div><div class="progress"><span id="level-progress"></span></div><div class="time-row"><span id="time-label">플레이 시간</span><b id="time">00:00</b></div></section>
+      <section class="card next-card"><h2>NEXT <small>다음 블록</small></h2><canvas id="next" width="120" height="210" aria-label="다음 블록 3개"></canvas></section>
+      <section class="card hold-card"><h2>HOLD <small id="hold-label">C로 보관</small></h2><canvas id="hold" width="120" height="70" aria-label="보관한 블록"></canvas></section>
+      <button id="restart" class="restart" disabled>↻ 처음부터 다시</button><button id="end-game" class="restart" disabled>게임 끝내기 · 모드 변경</button>
+    </aside>
+  </div>
+  <section class="touch-controls" aria-label="화면 조작 버튼"><div><button data-action="hold">보관 C</button><button data-action="ccw">↶</button><button data-action="rotate">↷ 회전</button><button data-action="drop" class="drop">⤓ 떨어뜨리기</button></div><div><button data-action="left" aria-label="왼쪽">←</button><button data-action="down" aria-label="아래로">↓</button><button data-action="right" aria-label="오른쪽">→</button></div></section>
+  <p class="mobile-best">이 모드의 내 최고 기록 · <strong id="best-inline">0</strong>점</p>
+  <footer><span>MADE FOR YOUR LITTLE BREAK ♡</span><p>개인 기록과 친구끼리의 가벼운 도전용이에요. 온라인 순위표·점수 검증은 제공하지 않아요.</p></footer>
+</main><div id="toast" role="status" hidden></div>
+</body></html>
