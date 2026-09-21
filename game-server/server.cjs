@@ -6,7 +6,7 @@ const {Rooms}=require('./rooms.cjs');
 const base=Date.now()-performance.now();
 function createServer({roomOptions={},allowedOrigins=process.env.ALLOWED_ORIGINS||''}={}){
  const manager=new Rooms({now:()=>base+performance.now(),...roomOptions});
- const assets=new Set(['block-online.html','block-online.css','block-online.js','block-online-config.js','block-online-engine.js','block-game-core.js','block-game.html','block-game.css','block-game.js']);
+ const assets=new Set(['block-online.html','block-online.css','block-online.js','block-online-config.js','block-online-engine.js','block-battle-core.js','block-game-core.js','block-game.html','block-game.css','block-game.js']);
  const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
  const server=http.createServer((req,res)=>{let url;try{url=new URL(req.url,'http://localhost');}catch{res.writeHead(400).end();return;}
    res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('Cache-Control','no-store');
@@ -32,7 +32,9 @@ function createServer({roomOptions={},allowedOrigins=process.env.ALLOWED_ORIGINS
        manager.tick();
        if(m.type==='ping'){send(ws,{type:'pong',sent:m.sent,now:manager.now()});return;}
        if(m.type==='create'||m.type==='join'||m.type==='resume'){
-         if(m.type==='create')manager.create(client,m.name);else if(m.type==='join')manager.join(client,m.code,m.name);else manager.resume(client,m.code,m.token);
+         const battleRequest=m.type==='create'?m.mode==='battle':manager.rooms.get(String(m.code).toUpperCase())?.mode==='battle';
+         if(battleRequest&&m.protocol!==2)throw Error('공격 대전은 페이지를 새로고침한 뒤 입장해주세요.');
+         if(m.type==='create')manager.create(client,m.name,m.mode);else if(m.type==='join')manager.join(client,m.code,m.name);else manager.resume(client,m.code,m.token);
          clearTimeout(helloTimer);send(ws,{type:'joined',code:client.room.code,you:client.player.id,token:client.player.token});broadcast(client.room);return;
        }
        if(!client.room)throw Error('먼저 방에 입장해주세요.');
