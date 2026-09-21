@@ -1,0 +1,15 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {WebSocket}=require('ws');
+const {createServer}=require('../server.cjs');
+const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+function peer(url,origin){return new Promise((resolve,reject)=>{const ws=new WebSocket(url,{origin});const inbox=[];ws.on('message',b=>inbox.push(JSON.parse(b)));ws.on('error',reject);ws.on('open',()=>resolve({ws,inbox,send:m=>ws.send(JSON.stringify(m)),async until(predicate){const end=Date.now()+4000;while(Date.now()<end){const at=inbox.findIndex(predicate);if(at>=0)return inbox.splice(at,1)[0];await wait(10);}throw Error('Message timeout');}}));});}
+test('four real WebSockets: join, ready, shared boards, resume, results, replay',async()=>{let now=100000;const app=createServer({roomOptions:{now:()=>now}});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const port=app.server.address().port,origin='http://127.0.0.1:'+port,url='ws://127.0.0.1:'+port+'/ws';const all=[];try{
+ assert.equal((await fetch(origin+'/health')).status,200);assert.equal((await fetch(origin+'/block-online.html')).status,200);assert.equal((await fetch(origin+'/server.cjs')).status,404);
+ const a=await peer(url,origin);all.push(a);a.send({type:'create',name:'HOST'});const joined=await a.until(m=>m.type==='joined');
+ for(let i=1;i<4;i++){const p=await peer(url,origin);all.push(p);p.send({type:'join',code:joined.code,name:'P'+i});await p.until(m=>m.type==='joined');}
+ for(const p of all)p.send({type:'ready',ready:true});await a.until(m=>m.type==='state'&&m.players.length===4&&m.players.every(p=>p.ready));a.send({type:'start'});const start=await a.until(m=>m.type==='state'&&m.phase==='countdown');now=start.startAt;app.manager.tick();await a.until(m=>m.type==='state'&&m.phase==='playing');
+ a.send({type:'input',round:start.round,seq:1,action:'drop',score:99999999});const updated=await a.until(m=>m.type==='state'&&m.ack===1);assert.ok(updated.own.score>0&&updated.own.score<100);const bView=await all[1].until(m=>m.type==='state'&&m.players.some(p=>p.id===joined.you&&p.score>0));assert.deepEqual(bView.players.find(p=>p.id===joined.you).board,updated.own.board);
+ const secondJoined=all[1].inbox.find(m=>m.type==='state');assert.ok(secondJoined);a.ws.close();await new Promise(r=>a.ws.once('close',r));await wait(25);const resumed=await peer(url,origin);all.push(resumed);resumed.send({type:'resume',code:joined.code,token:joined.token});const rejoin=await resumed.until(m=>m.type==='joined');assert.equal(rejoin.you,joined.you);const resumedState=await resumed.until(m=>m.type==='state');assert.equal(resumedState.own.score,updated.own.score);
+ now=start.endAt;app.manager.tick();const end=await resumed.until(m=>m.type==='state'&&m.phase==='finished');assert.equal(end.players[0].id,joined.you);for(const p of end.players)assert.equal(p.status,'over');
+ const host=all.find(p=>p.inbox.some(m=>m.type==='state'&&m.you===end.host));assert.ok(host);host.send({type:'rematch'});await resumed.until(m=>m.type==='state'&&m.phase==='waiting');
+ }finally{for(const p of all)p.ws.terminate();await app.close();}});

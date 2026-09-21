@@ -4,7 +4,7 @@
   const SHAPES={I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1],[0,0,0]],S:[[0,1,1],[1,1,0],[0,0,0]],Z:[[1,1,0],[0,1,1],[0,0,0]],J:[[1,0,0],[1,1,1],[0,0,0]],L:[[0,0,1],[1,1,1],[0,0,0]]};
   const TYPES=Object.keys(SHAPES);
   function hash(text){let n=2166136261;for(const c of String(text)){n^=c.charCodeAt(0);n=Math.imul(n,16777619);}return n>>>0;}
-  function random(seed){let n=hash(seed);return ()=>{n+=0x6D2B79F5;let t=n;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
+  function random(seed){let n=hash(seed);const next=()=>{n+=0x6D2B79F5;let t=n;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};next.state=()=>n;next.restore=value=>{n=value;};return next;}
   class Game{
     constructor({mode='classic',seed='CLOUD'}={}){
       this.mode=mode;this.seed=String(seed);this.rng=random(this.seed);this.board=Array.from({length:22},()=>Array(10).fill(null));

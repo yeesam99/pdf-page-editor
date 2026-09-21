@@ -2,12 +2,13 @@
 <html lang="ko">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#faf7f2"><title>몽글 블록 · 작은 아케이드</title><meta name="description" content="파스텔 블록을 쌓는 작은 아케이드. 혼자 즐기거나 같은 코드로 3분 점수에 도전하세요."><link rel="stylesheet" href="block-game.css?v=1"><script defer src="block-game-core.js?v=1"></script><script defer src="block-game.js?v=1"></script></head>
 <body>
-<header><a href="block-game.html" class="brand"><span class="brand-mark">▦</span> 몽글 블록 <small>tiny arcade</small></a><nav aria-label="도구 이동"><a href="index.html">PDF 편집기</a><a href="sql-builder.html">SQL Builder</a><a href="text-art.html">특수문자 그림판</a><a href="dodge-game.html">몽글 닷지</a></nav></header>
+<header><a href="block-game.html" class="brand"><span class="brand-mark">▦</span> 몽글 블록 <small>tiny arcade</small></a><nav aria-label="도구 이동"><a href="block-online.html">온라인 대전</a><a href="index.html">PDF 편집기</a><a href="sql-builder.html">SQL Builder</a><a href="text-art.html">특수문자 그림판</a><a href="dodge-game.html">몽글 닷지</a></nav></header>
 <main>
   <div class="intro"><div><span class="eyebrow">A LITTLE BREAK, ONE BLOCK AT A TIME</span><h1>오늘도 몽글몽글.</h1><p>차곡차곡 쌓고, 한 줄씩 가볍게 비워요.</p></div><span class="cloud" aria-hidden="true">☁<i>·ᴗ·</i></span></div>
   <div class="arcade">
     <aside class="left-stack">
       <section class="card setup"><h2><span>✦</span> 오늘의 플레이</h2><div class="mode-switch" role="group" aria-label="게임 모드"><button data-mode="classic" aria-pressed="true">기본 모드</button><button data-mode="challenge" aria-pressed="false">3분 도전</button></div><p id="mode-description">천천히 시작해서 점점 빠르게.<br>블록이 천장에 닿기 전까지 즐겨요.</p><div id="challenge-options" hidden><label for="challenge-code">친구와 같은 도전 코드</label><div class="code-row"><input id="challenge-code" maxlength="24" value="MONGLE" autocomplete="off" spellcheck="false"><button id="new-code" aria-label="새 도전 코드">↻</button></div><button id="copy-link" class="link-button">도전 링크 복사 ↗</button><p>같은 코드 = 같은 블록 순서<br>3분은 일시정지를 제외한 플레이 시간이에요.</p></div></section>
+      <section class="card"><h2>친구와 함께하는 3분</h2><p>2~4명이 동시에, 같은 블록으로 점수 대결!</p><a href="block-online.html" class="link-button">온라인 대전 입장 →</a></section>
       <section class="card records"><h2>나의 최고 기록 <span>♕</span></h2><strong id="best">0</strong><p id="storage-note">이 브라우저에 저장돼요</p></section>
       <section class="card instructions"><h2>손끝으로 가볍게</h2><dl><div><dt>이동</dt><dd>← →</dd></div><div><dt>회전</dt><dd>↑ / X · 반대 Z</dd></div><div><dt>빠르게 내리기</dt><dd>↓</dd></div><div><dt>바로 떨어뜨리기</dt><dd>Space</dd></div><div><dt>블록 보관</dt><dd>C / Shift</dd></div><div><dt>일시정지</dt><dd>P / Esc</dd></div></dl><p>10줄마다 레벨 UP!<br>바닥에 닿아도 잠깐 움직일 수 있어요.</p></section>
     </aside>

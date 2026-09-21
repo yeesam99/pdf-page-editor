@@ -1,0 +1,9 @@
+{
+  "name": "mongle-block-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "2–4 player, server-authoritative three-minute block score race",
+  "engines": {"node": ">=22"},
+  "scripts": {"start": "node server.cjs", "test": "node --test test/*.test.cjs"},
+  "dependencies": {"ws": "8.21.3"}
+}
