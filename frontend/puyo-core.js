@@ -21,7 +21,7 @@ class Game{
  if(this.pending){const count=Math.min(30,this.pending);this.pending-=count;const order=[0,1,2,3,4,5];for(let i=5;i>0;i--){const j=Math.floor(this.garbageRng()*(i+1));[order[i],order[j]]=[order[j],order[i]];}for(let i=0;i<count;i++){const x=order[i%6];let y=H-1;while(y>=0&&this.board[y][x])y--;if(y<0){this.end();return;}this.board[y][x]=5;}this.phase='garbage';this.timer=260;return;}this.spawn();}
  receive(n){this.pending=Math.min(180,this.pending+Math.max(0,Math.floor(n)));}
  takeAttack(){const n=this.outgoing;this.outgoing=0;return n;}
- snapshot(){return{board:this.board.map(r=>[...r]),active:this.active?{...this.active,colors:[...this.active.colors]}:null,ghost:this.ghost(),queue:this.queue.map(p=>[...p]),score:this.score,chain:this.chain,maxChain:this.maxChain,cleared:this.cleared,pending:this.pending,elapsed:this.elapsed,phase:this.phase,marked:this.marked,event:{...this.event}};}
+ snapshot(){return{board:this.board.map(r=>[...r]),active:this.active?{...this.active,colors:[...this.active.colors]}:null,ghost:this.ghost(),queue:this.queue.map(p=>[...p]),score:this.score,chain:this.chain,maxChain:this.maxChain,cleared:this.cleared,pending:this.pending,elapsed:this.elapsed,fall:this.fall,phase:this.phase,marked:this.marked,event:{...this.event}};}
 }
 const api={W,H,Game,cells,groups,random};if(typeof module==='object'&&module.exports)module.exports=api;else root.PuyoCore=api;
 })(globalThis);
