@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f5ed"><title>몽글 미로 · 출구에서 만나요</title><link rel="stylesheet" href="maze-online.css?v=1"><script defer src="block-online-config.js"></script><script defer src="maze-online.js?v=3"></script></head>
+<body>
+<header><a class="brand" href="maze-online.html"><span>↱</span> 몽글 미로 <small>MAZE CLUB</small></a><nav><a href="block-online.html">블록 대전 ↗</a><a href="index.html">홈</a></nav></header>
+<main>
+<section class="hero"><div><p class="eyebrow">TAKE YOUR TIME. FIND YOUR WAY.</p><h1>출구에서 만나요.</h1><p>시간에 쫓기지 않고, 길을 읽는 실력으로.<br>같은 미로에서 출발하는 우리들의 작은 레이스.</p></div><div class="hero-art" aria-hidden="true">↱<span>✦</span>↰<br>↳<span>●</span>↲</div></section>
+<p class="network"><span id="connection" role="status">2–4명 · 시간제한 없음</span><span id="latency"></span></p>
+<section id="entry" class="entry">
+ <article class="card"><span class="tag">NEW ADVENTURE</span><h2>오늘은 어떤 길일까?</h2><label for="nickname">닉네임</label><input id="nickname" maxlength="16" autocomplete="nickname" placeholder="예: 길찾는 몽글"><button id="create" class="primary">새 미로 방 만들기 →</button><p class="note">방을 만든 뒤 미로의 가로·세로와 시야를 설정해요.</p></article>
+ <article class="card"><span class="tag">JOIN YOUR FRIENDS</span><h2>친구가 기다리고 있나요?</h2><label for="room-code">6자리 미로 방 코드</label><input id="room-code" maxlength="6" placeholder="A1B2C3" autocomplete="off"><button id="join">친구 방에 입장하기 ↗</button><p class="note">상대는 반투명하게 보여요. 서로의 길을 막지 않아요.</p></article>
+</section>
+<section id="room" hidden>
+ <div class="room-bar"><div><span class="eyebrow">OUR LITTLE EXPEDITION</span><h2>방 <span id="room-label"></span> <small id="members"></small></h2></div><div><button id="invite">초대 링크 복사</button><button id="leave">나가기</button></div></div>
+ <section id="lobby" class="card">
+  <div class="section-head"><div><h2>우리의 미로를 정해요.</h2><p>방장이 설정을 저장한 뒤 모두 준비해주세요.</p></div><span class="tag">NO TIME LIMIT</span></div>
+  <form id="settings-form"><fieldset id="settings-fields"><legend>방장 설정</legend><div class="presets"><button type="button" data-preset="15,11,0">가볍게</button><button type="button" data-preset="25,19,0">차근차근</button><button type="button" data-preset="35,27,0">복잡하게</button><button type="button" data-preset="45,35,1">극한 탐험</button></div><div class="dimensions"><label>가로 칸 수<input id="maze-width" type="number" min="9" max="81" step="1" value="21" required></label><span>×</span><label>세로 칸 수<input id="maze-height" type="number" min="9" max="81" step="1" value="15" required></label></div><p class="note">각각 9~81칸 · 직사각형 가능 · 큰 미로는 더 오래 걸려요.</p><label class="check"><input id="extreme" type="checkbox"> 극한 모드 · 내 주변만 보이는 손전등</label><label class="check"><input id="items" type="checkbox"> 귀환 상자 · 밟으면 출발지로 복귀</label><p class="note">극한 모드는 시작 전 3초 동안 미로와 출구를 공개해요. 상자는 각자 한 번씩 작동하며 정답 경로 밖에 놓여요.</p><button id="save-settings" type="submit">설정 저장</button></fieldset></form>
+  <div id="roster" class="roster"></div><p id="lobby-hint" role="status"></p><div class="actions"><button id="ready" class="primary">준비하기 ✓</button><button id="start">함께 출발 →</button></div>
+ </section>
+ <section id="match" hidden>
+  <div class="match-head"><div><p class="eyebrow" id="match-mode">FIND YOUR WAY</p><h2 id="match-title">나만의 길을 찾아요.</h2><p id="map-size"></p></div><div class="clock"><small>경과 시간</small><strong id="timer">00:00</strong><span>시간제한 없음</span></div></div>
+  <div class="play-layout"><section class="map-card"><div class="map-toolbar"><span id="view-label">내 시야</span><label>확대 <input id="zoom" type="range" min="1" max="4" step=".25" value="1"></label></div><div id="viewport" class="viewport"><canvas id="maze" width="840" height="600" tabindex="0" aria-label="미로 게임판. 방향키 또는 WASD로 이동합니다."></canvas></div><div class="map-foot"><span>● 나 &nbsp; ◌ 친구 &nbsp; ✦ 출구 &nbsp; ↶ 귀환 상자</span><span id="move-count">0칸 이동</span></div><div id="countdown" class="countdown" hidden><strong id="countdown-number">3</strong><span>미로와 출구를 기억하세요</span></div></section>
+   <aside><article class="card"><span class="tag">THE FINISH LINE</span><h2>탐험대 현황</h2><ol id="ranking"></ol><p class="note">도착 순서로 순위를 정해요.<br>이동 중인 선수의 거리 순위는 표시하지 않아요.</p></article><article id="spectate-card" class="card" hidden><h2>친구의 길 따라가기</h2><label for="spectate">관전할 선수</label><select id="spectate"></select><p class="note">극한에서는 선택한 선수의 손전등 시야로 관전해요.</p></article><article id="result" class="card" hidden><span class="tag">WE FOUND OUR WAY</span><h2 id="result-title">탐험 완료!</h2><p id="result-note"></p><button id="rematch" class="primary">새 미로로 다시 만나기 ↻</button></article><button id="giveup" class="quiet">이번 경기 포기하고 관전</button></aside>
+  </div>
+  <p id="event" class="event" role="status"></p>
+  <div class="touch" aria-label="터치 방향 조작"><button data-direction="0" aria-label="위">↑</button><button data-direction="3" aria-label="왼쪽">←</button><button data-direction="2" aria-label="아래">↓</button><button data-direction="1" aria-label="오른쪽">→</button></div>
+  <p class="controls">방향키 / WASD 한 번 → 같은 축의 첫 갈림길·벽 앞까지 즉시 이동 · 모퉁이에서는 방향을 다시 눌러주세요</p>
+ </section>
+</section><footer>서두르지 않아도 괜찮아. 출구는 있어요. ✦</footer>
+</main><div id="toast" role="status" hidden></div></body></html>
