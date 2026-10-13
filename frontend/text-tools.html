@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>텍스트 도구 · PDF 페이지 편집기</title>
   <link rel="stylesheet" href="text-tools.css">
-  <link rel="stylesheet" href="text-tools-wide.css?v=2">
+  <link rel="stylesheet" href="text-tools-wide.css?v=3">
+  <link rel="stylesheet" href="text-tools-live.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -40,20 +41,17 @@
     <section id="diff-panel" role="tabpanel" hidden>
       <div class="compare-toolbar">
         <div class="options"><label><input id="ignore-case" type="checkbox"> 대소문자 무시</label><label><input id="ignore-space" type="checkbox"> 공백 차이 무시</label><label><input id="ignore-blank" type="checkbox"> 빈 줄 무시</label></div>
-        <div class="diff-nav"><button id="toggle-same" aria-pressed="false">동일 줄 숨기기</button><button id="prev-diff">↑ 이전 차이</button><strong id="diff-count">차이 0개</strong><button id="next-diff">다음 차이 ↓</button><button id="run-diff" class="primary">지금 비교</button></div>
+        <div class="diff-nav"><span id="live-status" role="status">자동 비교</span><button id="prev-diff">↑ 이전 차이</button><strong id="diff-count">차이 0개</strong><button id="next-diff">다음 차이 ↓</button><button id="undo-merge" disabled>반영 되돌리기</button><button id="save-diff">TXT 저장</button></div>
       </div>
-      <dialog id="input-dialog"><div class="panel-head"><h2>텍스트 전체 입력 · 붙여넣기</h2><button id="close-input" class="primary">적용하고 비교</button></div><div class="compare-inputs">
-        <div class="panel"><div class="panel-head"><h2>원본</h2><div><button id="left-to-right">오른쪽으로 복사 →</button><button class="quiet" data-clear="left-input">비우기</button></div></div><textarea id="left-input" spellcheck="false" placeholder="원본 텍스트"></textarea></div>
-        <div class="panel"><div class="panel-head"><h2>변경본</h2><div><button id="right-to-left">← 왼쪽으로 복사</button><button class="quiet" data-clear="right-input">비우기</button></div></div><textarea id="right-input" spellcheck="false" placeholder="변경된 텍스트"></textarea></div>
-      </div></dialog>
-      <div class="diff-result panel">
-        <div class="panel-head"><div><h2>좌우 텍스트 비교</h2><p>줄을 클릭해 수정 · Enter 또는 지금 비교로 갱신 · 빨강 삭제 / 초록 추가 / 노랑 변경</p></div><div><button id="open-input" class="primary">전체 입력 / 붙여넣기</button><button id="save-diff">TXT 저장</button></div></div>
-        <div class="diff-columns"><strong>원본</strong><strong>변경본</strong></div>
-        <div id="diff-rows" class="diff-rows"><div class="empty">좌우에 텍스트를 입력하면 차이를 바로 확인할 수 있습니다.</div></div>
+      <p class="live-help">바로 입력하거나 붙여넣으세요. 색칠된 줄 옆 화살표는 그 줄만 반대편에 반영합니다. 빨강: 삭제 · 초록: 추가 · 노랑: 변경</p>
+      <div class="live-editors">
+        <section class="panel live-panel"><div class="panel-head"><h2>원본</h2><div><button id="left-to-right">전체 →</button><button class="quiet" data-clear="left-input">비우기</button></div></div><div class="editor-shell" id="left-shell"><div class="gutter" id="left-gutter" aria-label="원본 줄 번호와 반영 버튼"></div><div class="highlight-clip" aria-hidden="true"><pre id="left-highlight"></pre></div><textarea id="left-input" aria-label="원본 텍스트" wrap="off" spellcheck="false" placeholder="원본을 여기에 붙여넣으세요."></textarea></div></section>
+        <section class="panel live-panel"><div class="panel-head"><h2>변경본</h2><div><button id="right-to-left">← 전체</button><button class="quiet" data-clear="right-input">비우기</button></div></div><div class="editor-shell" id="right-shell"><div class="gutter" id="right-gutter" aria-label="변경본 줄 번호와 반영 버튼"></div><div class="highlight-clip" aria-hidden="true"><pre id="right-highlight"></pre></div><textarea id="right-input" aria-label="변경본 텍스트" wrap="off" spellcheck="false" placeholder="변경본을 여기에 붙여넣으세요."></textarea></div></section>
       </div>
+      <details id="changes-list"><summary>차이만 모아보기 <span id="list-count"></span></summary><div id="change-items"></div></details>
     </section>
   </main>
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="text-tools-core.js"></script><script src="text-tools.js"></script>
+  <script src="text-tools-core.js?v=3"></script><script src="text-tools-live.js?v=3"></script>
 </body>
 </html>

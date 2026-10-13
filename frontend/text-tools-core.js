@@ -13,6 +13,14 @@
   const splitLines=text=>String(text??'').replace(/\r\n?/g,'\n').split('\n');
   function lcsDiff(left,right,key){
     const n=left.length,m=right.length;
+    let prefix=0,suffix=0;
+    while(prefix<n&&prefix<m&&key(left[prefix])===key(right[prefix]))prefix++;
+    while(suffix<n-prefix&&suffix<m-prefix&&key(left[n-1-suffix])===key(right[m-1-suffix]))suffix++;
+    if(prefix||suffix)return [
+      ...left.slice(0,prefix).map((l,i)=>({type:'same',left:l,right:right[i]})),
+      ...lcsDiff(left.slice(prefix,n-suffix),right.slice(prefix,m-suffix),key),
+      ...left.slice(n-suffix).map((l,i)=>({type:'same',left:l,right:right[m-suffix+i]}))
+    ];
     if(n*m>1500000){
       const out=[];
       for(let i=0;i<Math.max(n,m);i++){
@@ -36,21 +44,22 @@
     return out;
   }
   function compare(leftText,rightText,opt={}){
-    let left=splitLines(leftText).map((text,index)=>({text,no:index+1}));
-    let right=splitLines(rightText).map((text,index)=>({text,no:index+1}));
+    let left=(leftText===''?[]:splitLines(leftText)).map((text,index)=>({text,no:index+1}));
+    let right=(rightText===''?[]:splitLines(rightText)).map((text,index)=>({text,no:index+1}));
     if(opt.ignoreBlank){left=left.filter(x=>x.text.trim());right=right.filter(x=>x.text.trim());}
     const key=x=>normalize(x.text,opt);
     const raw=lcsDiff(left,right,key),rows=[];
-    for(let i=0;i<raw.length;i++){
-      const cur=raw[i],next=raw[i+1];
-      const compatible=(a,b)=>!!a?.text.trim()&&!!b?.text.trim();
-      if(cur.type==='remove'&&next?.type==='add'&&compatible(cur.left,next.right)){
-        rows.push({type:'change',left:cur.left,right:next.right});i++;continue;
+    for(let i=0;i<raw.length;){
+      if(raw[i].type==='same'){rows.push(raw[i++]);continue;}
+      const removed=[],added=[];
+      while(i<raw.length&&raw[i].type!=='same'){const r=raw[i++];if(r.type==='remove')removed.push(r.left);else added.push(r.right);}
+      let l=0,r=0;
+      while(l<removed.length||r<added.length){
+        const a=removed[l],b=added[r];
+        if(a&&b&&!!a.text.trim()===!!b.text.trim()){rows.push({type:'change',left:a,right:b});l++;r++;}
+        else if(a&&(!a.text.trim()||!b)){rows.push({type:'remove',left:a});l++;}
+        else{rows.push({type:'add',right:b});r++;}
       }
-      if(cur.type==='add'&&next?.type==='remove'&&compatible(next.left,cur.right)){
-        rows.push({type:'change',left:next.left,right:cur.right});i++;continue;
-      }
-      rows.push(cur);
     }
     return {rows,differences:rows.filter(x=>x.type!=='same').length};
   }
@@ -68,5 +77,20 @@
     const value=String(text??'');
     return {chars:value.length,charsNoSpace:value.replace(/\s/g,'').length,words:(value.trim().match(/\S+/g)||[]).length,lines:value?splitLines(value).length:0};
   }
-  return {normalize,splitLines,compare,caseConvert,stats};
+  function mergeRow(leftText,rightText,rows,index,direction){
+    const row=rows[index];
+    if(!row||row.type==='same')return {left:leftText,right:rightText};
+    const target=direction==='right'?'right':'left',source=target==='right'?'left':'right';
+    const original=target==='left'?leftText:rightText;
+    const lines=original===''?[]:splitLines(original);
+    if(row[target]){
+      const at=row[target].no-1;
+      if(row[source])lines.splice(at,1,row[source].text);else lines.splice(at,1);
+    }else if(row[source]){
+      const next=rows.slice(index+1).find(r=>r[target]);
+      lines.splice(next?next[target].no-1:lines.length,0,row[source].text);
+    }
+    return {left:target==='left'?lines.join('\n'):leftText,right:target==='right'?lines.join('\n'):rightText};
+  }
+  return {normalize,splitLines,compare,caseConvert,stats,mergeRow};
 });
