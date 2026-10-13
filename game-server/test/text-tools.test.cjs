@@ -22,3 +22,11 @@ test('comparison reports changed, added and removed lines with ignore options',(
 test('stats counts characters, words and lines',()=>{
   assert.deepEqual(T.stats('ab cd\nef'),{chars:8,charsNoSpace:6,words:3,lines:2});
 });
+
+test('blank deletion and inserted SQL are never mislabeled as a modification',()=>{
+  const r=T.compare('BEFORE\n\nAFTER','BEFORE\n-- remove assembly\nDROP ASSEMBLY [Example];\nAFTER');
+  assert.equal(r.rows.filter(x=>x.type==='change').length,0);
+  assert.equal(r.rows.filter(x=>x.type==='add').length,2);
+  assert.equal(r.rows.filter(x=>x.type==='remove').length,1);
+  assert.equal(r.rows.filter(x=>x.type==='same').length,2);
+});

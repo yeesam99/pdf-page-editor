@@ -1,0 +1,18 @@
+[hidden]{display:none!important}
+:root{--editor-size:14px}
+body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:60px;flex-shrink:0;padding:0 22px}
+main{width:100%;max-width:none;padding:16px 20px;flex:1;min-height:0;display:flex;flex-direction:column}
+.intro{margin-bottom:14px;gap:16px;align-items:center;flex-shrink:0}
+.intro h1{font-size:23px;margin:5px 0}.intro .eyebrow{display:none}.intro>div:first-child{margin-right:auto}
+.view-controls{display:flex;align-items:center;gap:6px;white-space:nowrap}.view-controls output{min-width:38px;text-align:center;font-size:12px}
+.tabs{flex-shrink:0}.workspace{flex:1;min-height:0}.workspace>.panel{display:flex;flex-direction:column}
+.panel textarea,#case-output{font-size:var(--editor-size);min-height:0;flex:1;resize:none;line-height:1.5}
+#diff-panel{flex:1;display:flex;flex-direction:column;min-height:0}.compare-toolbar{flex-wrap:wrap;flex-shrink:0;margin-bottom:10px;gap:8px}.diff-nav{gap:6px}
+.diff-result{margin-top:0;flex:1;min-height:0;display:flex;flex-direction:column}.panel-head,.diff-columns{flex-shrink:0}
+.diff-rows{flex:1;max-height:none;min-height:0;font-size:var(--editor-size);line-height:1.5;overflow:auto;scrollbar-gutter:stable}
+.diff-row{min-height:1.5em}.diff-cell{min-width:0;grid-template-columns:48px minmax(0,1fr);line-height:1.5}.line-no,.line-text{padding-top:1px;padding-bottom:1px}.line-text{min-height:1.5em;white-space:pre-wrap;tab-size:4;outline-offset:-2px}.line-text:focus{outline:2px solid #679aff;background:#fff}.line-no{font-size:.8em;line-height:1.875}
+dialog{width:min(1400px,96vw);height:85dvh;max-height:90dvh;border:1px solid var(--line);border-radius:14px;padding:0;color:inherit}dialog::backdrop{background:#14243b80}dialog[open]{display:flex;flex-direction:column}dialog>.compare-inputs{flex:1;min-height:0;padding:14px}dialog .panel{display:flex;flex-direction:column}dialog textarea{min-height:200px}
+button:disabled{opacity:.45;cursor:default}
+@media(max-width:1100px){.intro{flex-wrap:wrap}.intro>div:first-child{flex:1 1 100%}.intro h1{font-size:21px}.panel-head{flex-wrap:wrap}.compare-toolbar{padding:9px}.options{gap:6px}}
+@media(max-width:650px){body{overflow:auto;height:auto;min-height:100dvh}.topbar{padding:12px;height:auto;flex-wrap:wrap}main{padding:12px;min-height:85dvh}.intro{gap:10px}.intro p:last-child{font-size:11px}.intro h1{font-size:20px}.view-controls button,.tabs button{padding:8px}.workspace{display:flex;flex-direction:column}.workspace>.panel{min-height:320px}#diff-panel{min-height:70dvh}.diff-rows{max-height:65dvh;flex-basis:55dvh}.diff-cell{grid-template-columns:28px minmax(0,1fr)}.line-text{padding-left:5px;padding-right:5px}.diff-columns strong{padding-left:32px}dialog .compare-inputs{display:flex;flex-direction:column;overflow:auto}dialog .panel{min-height:250px}.panel-head p{line-height:1.5}}

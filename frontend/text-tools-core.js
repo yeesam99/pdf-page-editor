@@ -43,10 +43,11 @@
     const raw=lcsDiff(left,right,key),rows=[];
     for(let i=0;i<raw.length;i++){
       const cur=raw[i],next=raw[i+1];
-      if(cur.type==='remove'&&next?.type==='add'){
+      const compatible=(a,b)=>!!a?.text.trim()&&!!b?.text.trim();
+      if(cur.type==='remove'&&next?.type==='add'&&compatible(cur.left,next.right)){
         rows.push({type:'change',left:cur.left,right:next.right});i++;continue;
       }
-      if(cur.type==='add'&&next?.type==='remove'){
+      if(cur.type==='add'&&next?.type==='remove'&&compatible(next.left,cur.right)){
         rows.push({type:'change',left:next.left,right:cur.right});i++;continue;
       }
       rows.push(cur);
