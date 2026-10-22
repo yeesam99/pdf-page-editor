@@ -1,0 +1,9 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const C=require('../../frontend/image-editor-core.js');
+test('기본 보정은 원본과 알파를 보존한다',()=>{const a=Uint8ClampedArray.from([0,64,255,0,20,128,240,125]);assert.deepEqual(C.adjust(a),a);assert.equal(C.adjust(a,{brightness:100})[7],125);});
+test('연결 선택은 대각선과 분리된 같은 색을 건너뛴다',()=>{const a=Uint8ClampedArray.from([0,0,0,255,255,255,255,255,255,255,255,255,0,0,0,255]);assert.deepEqual([...C.colorSelect(a,2,2,0,0,0,true)],[255,0,0,0]);assert.deepEqual([...C.colorSelect(a,2,2,0,0,0,false)],[255,0,0,255]);});
+test('부분 선택의 보정 및 경계 계산',()=>{const a=new Uint8ClampedArray(8),b=new Uint8ClampedArray(8).fill(200);assert.deepEqual([...C.blendSelection(a,b,[255,0])],[200,200,200,200,0,0,0,0]);assert.deepEqual(C.bounds([0,255,0,255],2,2),{x:1,y:0,w:1,h:2});assert.equal(C.bounds([0,0],2,1),null);});
+test('블러는 투명 영역 주변에 검은 테두리를 만들지 않는다',()=>{const a=Uint8ClampedArray.from([255,255,255,255,0,0,0,0]);const b=C.filter(a,2,1,'blur',1);assert.equal(b[4],255);assert.ok(b[7]>0);});
+test('필터는 원본을 수정하지 않고 알파를 유지한다',()=>{const a=Uint8ClampedArray.from([200,50,40,150]);assert.deepEqual([...C.filter(a,1,1,'invert')],[55,205,215,150]);assert.equal(a[0],200);assert.equal(C.filter(a,1,1,'red-eye')[0],45);});
+test('프로젝트의 잘못된 크기 및 식별자를 거부한다',()=>{const p={format:'mongle-image',version:1,width:100,height:100,layers:[],groups:[]};assert.equal(C.validateProject(p),p);assert.throws(()=>C.validateProject({...p,width:99999}));assert.throws(()=>C.validateProject({...p,groups:[{id:'" onclick="',name:'bad'}]}));});
+test('ZIP은 UTF8 이름, CRC 및 중앙 디렉터리를 기록한다',()=>{const bytes=new TextEncoder().encode('123456789'),z=C.zip([{name:'한글.txt',bytes}]),v=new DataView(z.buffer);assert.equal(v.getUint32(0,true),0x04034b50);assert.equal(v.getUint32(14,true),0xcbf43926);assert.equal(v.getUint16(6,true),0x800);assert.equal(v.getUint32(z.length-22,true),0x06054b50);assert.equal(v.getUint16(z.length-14,true),1);});
