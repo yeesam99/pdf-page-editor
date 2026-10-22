@@ -62,5 +62,20 @@
    const c=new Uint8Array(46+name.length);u32(c,0,0x02014b50);u16(c,4,20);u16(c,6,20);u16(c,8,0x800);u32(c,16,hash);u32(c,20,body.length);u32(c,24,body.length);u16(c,28,name.length);u32(c,42,offset);c.set(name,46);central.push(c);offset+=h.length+body.length;}
   const end=new Uint8Array(22),len=central.reduce((n,x)=>n+x.length,0);u32(end,0,0x06054b50);u16(end,8,files.length);u16(end,10,files.length);u32(end,12,len);u32(end,16,offset);const all=[...parts,...central,end],out=new Uint8Array(all.reduce((n,x)=>n+x.length,0));let pos=0;for(const a of all){out.set(a,pos);pos+=a.length;}return out;
  }
- return {clamp,defaults,adjust,filter,colorSelect,blendSelection,bounds,validateProject,zip};
+ // RGB/alpha gradient, used by the magnetic lasso without an AI model.
+ function edgeMap(data,w,h){const out=new Float32Array(w*h);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;let v=0;for(let k=0;k<4;k++){const dx=data[(i+1)*4+k]-data[(i-1)*4+k],dy=data[(i+w)*4+k]-data[(i-w)*4+k];v=Math.max(v,Math.hypot(dx,dy));}out[i]=v;}return out;}
+ function snapEdge(edge,w,h,p,radius=12){const r=clamp(radius,2,40);let best=18,result={x:p.x,y:p.y};for(let y=Math.max(1,Math.floor(p.y-r));y<Math.min(h-1,p.y+r);y++)for(let x=Math.max(1,Math.floor(p.x-r));x<Math.min(w-1,p.x+r);x++){const d=Math.hypot(x-p.x,y-p.y);if(d>r)continue;const score=edge[y*w+x]*(1-.65*d/r)-d*2;if(score>best){best=score;result={x,y};}}return result;}
+ // Multi-seed, fixed-colour flood selection. Visited regions are reused across
+ // seed strokes; strong local colour transitions stop expansion.
+ function quickSelect(data,w,h,seeds,tolerance=28,existing=null){const out=existing||new Uint8Array(w*h),seen=new Uint32Array(w*h),queue=new Int32Array(w*h);let stamp=0;const t=clamp(tolerance,0,255);
+  for(const s of seeds){const seed=Math.floor(clamp(s.y,0,h-1))*w+Math.floor(clamp(s.x,0,w-1));if(out[seed])continue;stamp++;let head=0,tail=1;queue[0]=seed;seen[seed]=stamp;const b=seed*4;
+   while(head<tail){const i=queue[head++],a=i*4;out[i]=255;const xx=i%w;for(let n=0;n<4;n++){const j=n===0?(xx?i-1:-1):n===1?(xx<w-1?i+1:-1):n===2?i-w:i+w;if(j<0||j>=w*h||out[j]||seen[j]===stamp)continue;seen[j]=stamp;const q=j*4;let global=0,local=0;for(let k=0;k<4;k++){global=Math.max(global,Math.abs(data[q+k]-data[b+k]));local=Math.max(local,Math.abs(data[q+k]-data[a+k]));}if(global<=t&&local<=Math.max(10,t*.65))queue[tail++]=j;}}
+  }return out;
+ }
+ // Resize around the opposite handle, preserving its world-space position.
+ function transformRect(o,h,dx,dy,proportional=true){const a=o.rotation*Math.PI/180,c=Math.cos(a),s=Math.sin(a),lx=dx*c+dy*s,ly=-dx*s+dy*c;let w=clamp(o.w+lx*h[0],1,8192),v=clamp(o.h+ly*h[1],1,8192);if(!h[0])w=o.w;if(!h[1])v=o.h;
+  if(proportional&&h[0]&&h[1]){let ratio=Math.abs(w/o.w-1)>Math.abs(v/o.h-1)?w/o.w:v/o.h;ratio=clamp(ratio,Math.max(1/o.w,1/o.h),Math.min(8192/o.w,8192/o.h,Math.sqrt(16777216/(o.w*o.h))));w=o.w*ratio;v=o.h*ratio;}
+  if(w*v>16777216){const f=Math.sqrt(16777216/(w*v));w*=f;v*=f;}const cx=(w-o.w)*h[0]/2,cy=(v-o.h)*h[1]/2;return {x:o.x+o.w/2+cx*c-cy*s-w/2,y:o.y+o.h/2+cx*s+cy*c-v/2,w,h:v};
+ }
+ return {clamp,defaults,adjust,filter,colorSelect,blendSelection,bounds,validateProject,zip,edgeMap,snapEdge,quickSelect,transformRect};
 });
