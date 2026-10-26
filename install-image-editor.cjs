@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const index=path.join(__dirname,'frontend','index.html');
 if(!fs.existsSync(index))throw Error('프로젝트 최상위 폴더에 압축을 풀어주세요. frontend/index.html이 필요합니다.');
-for(const file of ['image-editor.html','image-editor.css','image-editor.js','image-editor-core.js'])if(!fs.existsSync(path.join(__dirname,'frontend',file)))throw Error('누락된 파일: '+file);
+for(const file of ['image-editor.html','image-editor.css','image-editor.js','image-editor-core.js','image-editor-refine.js','image-editor-retouch-core.js','image-editor-retouch.js'])if(!fs.existsSync(path.join(__dirname,'frontend',file)))throw Error('누락된 파일: '+file);
 let html=fs.readFileSync(index,'utf8'),before=html;
 if(!html.includes('href="image-editor.html"')){
  const marker='<div class="top-actions">';

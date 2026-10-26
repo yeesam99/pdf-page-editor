@@ -77,5 +77,16 @@
   if(proportional&&h[0]&&h[1]){let ratio=Math.abs(w/o.w-1)>Math.abs(v/o.h-1)?w/o.w:v/o.h;ratio=clamp(ratio,Math.max(1/o.w,1/o.h),Math.min(8192/o.w,8192/o.h,Math.sqrt(16777216/(o.w*o.h))));w=o.w*ratio;v=o.h*ratio;}
   if(w*v>16777216){const f=Math.sqrt(16777216/(w*v));w*=f;v*=f;}const cx=(w-o.w)*h[0]/2,cy=(v-o.h)*h[1]/2;return {x:o.x+o.w/2+cx*c-cy*s-w/2,y:o.y+o.h/2+cx*s+cy*c-v/2,w,h:v};
  }
- return {clamp,defaults,adjust,filter,colorSelect,blendSelection,bounds,validateProject,zip,edgeMap,snapEdge,quickSelect,transformRect};
+ // Standalone so the same implementation can run in a Web Worker.
+ function refineMask(input,w,h,settings={}){
+  function pass(src,r,horizontal,kind){const dst=new Uint8ClampedArray(w*h),length=horizontal?w:h,lines=horizontal?h:w,index=(line,p)=>horizontal?line*w+p:p*w+line;
+   for(let line=0;line<lines;line++){if(kind==='blur'){let sum=0;for(let p=0;p<=r&&p<length;p++)sum+=src[index(line,p)];for(let p=0;p<length;p++){dst[index(line,p)]=sum/(2*r+1);if(p-r>=0)sum-=src[index(line,p-r)];if(p+r+1<length)sum+=src[index(line,p+r+1)];}}
+    else{const q=new Int32Array(length+2*r),values=new Uint8Array(length+2*r);let head=0,tail=0;for(let p=-r;p<length+r;p++){const v=p<0||p>=length?0:src[index(line,p)];while(tail>head&&(kind==='max'?values[tail-1]<=v:values[tail-1]>=v))tail--;q[tail]=p;values[tail++]=v;while(head<tail&&q[head]<p-2*r)head++;if(p>=r)dst[index(line,p-r)]=values[head];}}}return dst;
+  }
+  const radius=(v,max)=>Math.min(max,Math.max(0,Math.round(Math.abs(Number(v)||0))));let out=new Uint8ClampedArray(input),r=radius(settings.shift,30);if(r){const kind=settings.shift>0?'max':'min';out=pass(pass(out,r,true,kind),r,false,kind);}r=radius(settings.smooth,10);if(r){out=pass(pass(out,r,true,'blur'),r,false,'blur');for(let i=0;i<out.length;i++){const t=Math.max(0,Math.min(1,(out[i]/255-.25)*2));out[i]=255*t*t*(3-2*t);}}r=radius(settings.feather,20);if(r)out=pass(pass(out,r,true,'blur'),r,false,'blur');return out;
+ }
+ // Layers are stored bottom-to-top; "before" refers to the top-to-bottom UI.
+ function reorderLayers(layers,ids,targetId,before=true,destinationGroup=undefined){const set=new Set(ids),moving=layers.filter(l=>set.has(l.id));if(!moving.length||set.has(targetId)||!layers.some(l=>l.id===targetId))return layers;const rest=layers.filter(l=>!set.has(l.id)),at=rest.findIndex(l=>l.id===targetId)+(before?1:0);rest.splice(at,0,...moving.map(l=>destinationGroup===undefined?l:{...l,group:destinationGroup}));return rest;}
+ function mergeRange(layers,ids,groups=[]){const set=new Set(ids),indices=[];layers.forEach((l,i)=>{if(set.has(l.id))indices.push(i);});if(indices.length<2)return {error:'Shift+클릭으로 병합할 레이어를 2개 이상 선택해주세요.'};const lo=indices[0],hi=indices[indices.length-1];if(hi-lo+1!==indices.length)return {error:'순서가 연속된 레이어만 병합할 수 있습니다. 먼저 드래그로 모아주세요.'};const chosen=layers.slice(lo,hi+1),parent=chosen[0].group||null;if(chosen.some(l=>(l.group||null)!==parent))return {error:'같은 그룹의 레이어끼리 병합해주세요. 그룹 밖으로 옮긴 뒤 병합할 수도 있습니다.'};if(chosen.some(l=>l.locked||groups.some(g=>g.id===l.group&&g.locked)))return {error:'잠긴 레이어 또는 그룹은 병합할 수 없습니다.'};if(chosen.some(l=>!l.visible||groups.some(g=>g.id===l.group&&g.visible===false)))return {error:'숨겨진 레이어가 포함되어 있습니다. 표시한 뒤 병합해주세요.'};return {lo,hi,parent};}
+ return {clamp,defaults,adjust,filter,colorSelect,blendSelection,bounds,validateProject,zip,edgeMap,snapEdge,quickSelect,transformRect,refineMask,reorderLayers,mergeRange};
 });
