@@ -23,6 +23,7 @@ class UnlockTests(unittest.TestCase):
         data = fixture()
         self.assertTrue(self.post('security',data).json()['protected'])
         self.assertEqual(self.post('unlock',data,'wrong').status_code,401)
+        self.assertEqual(self.post('unlock',data,'').status_code,401)
         for password in ['reader','owner']:
             result = self.post('unlock',data,password)
             self.assertEqual(result.status_code,200)
@@ -33,10 +34,17 @@ class UnlockTests(unittest.TestCase):
                 self.assertIn('123',doc[0].get_text())
                 self.assertEqual(doc.metadata['title'],'Preserved title')
                 self.assertEqual(doc.get_toc(),[[1,'Chapter',1]])
-    def test_owner_required_for_restrictions(self):
+    def test_restrictions_removed_without_owner_password(self):
         data = fixture(user='')
         self.assertTrue(self.post('security',data).json()['protected'])
-        self.assertEqual(self.post('unlock',data,'').status_code,401)
+        result = self.post('unlock',data,'')
+        self.assertEqual(result.status_code,200)
+        with fitz.open(stream=result.content,filetype='pdf') as doc:
+            self.assertFalse(doc.needs_pass)
+            self.assertFalse(doc.metadata['encryption'])
+            self.assertIn('123',doc[0].get_text())
+            self.assertTrue(doc.permissions & fitz.PDF_PERM_COPY)
+            self.assertTrue(doc.permissions & fitz.PDF_PERM_MODIFY)
         self.assertEqual(self.post('unlock',data,'owner').status_code,200)
     def test_plain_and_invalid(self):
         self.assertFalse(self.post('security',fixture(encrypted=False)).json()['protected'])

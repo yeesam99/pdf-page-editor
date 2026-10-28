@@ -30,13 +30,11 @@ def security(file: UploadFile = File(...)):
 @router.post('/unlock')
 def unlock(file: UploadFile = File(...), password: str = Form('')):
     with read_pdf(file) as doc:
-        if protected(doc):
-            needed_password = bool(doc.needs_pass)
-            result = doc.authenticate(password)
-            # An empty user password can open a restricted PDF; require owner
-            # authentication to remove those permissions in that case.
-            if not result or (not needed_password and not (result & 4)):
-                raise HTTPException(401, '비밀번호가 올바르지 않거나 소유자 비밀번호가 필요합니다.')
+        # Read needs_pass before authentication: querying it afterwards can
+        # invalidate authenticated stream decoding in some MuPDF versions.
+        if doc.needs_pass:
+            if not doc.authenticate(password):
+                raise HTTPException(401, 'PDF 열기 비밀번호가 올바르지 않습니다.')
         try:
             data = doc.tobytes(encryption=fitz.PDF_ENCRYPT_NONE, garbage=3, deflate=True)
         except Exception:

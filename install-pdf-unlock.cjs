@@ -14,7 +14,8 @@ if (!py.includes('from pdf_unlock import router as pdf_unlock_router')) {
 }
 if (!html.includes('src="./pdf-unlock.js')) {
   if (!html.includes('</body>')) throw Error('HTML body not found');
-  html = html.replace('</body>', '<script src="./pdf-unlock.js?v=1.0.0"></script>\n</body>');
+  html = html.replace('</body>', '<script src="./pdf-unlock.js?v=1.1.0"></script>\n</body>');
 }
+html = html.replace(/pdf-unlock\.js\?v=[^"']+/g, 'pdf-unlock.js?v=1.1.0');
 fs.writeFileSync(backend, py); fs.writeFileSync(frontend, html);
 console.log('PDF 잠금 해제 추가 완료. PDF API 서버와 프론트엔드를 모두 배포해주세요.');

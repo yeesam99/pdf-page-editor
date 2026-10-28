@@ -46,7 +46,10 @@
   async function prepare(file) {
     if (file.size > 50 * 1024 * 1024) throw new Error('PDF는 50MB 이하만 지원합니다.');
     const info = await request('security', file);
-    return info.protected ? authenticate(file) : file;
+    if (!info.protected) return file;
+    if (info.needs_password) return authenticate(file);
+    const blob = await request('unlock', file);
+    return new File([blob], file.name.replace(/\.pdf$/i, '') + '_잠금해제.pdf', {type:'application/pdf'});
   }
   uploadFiles = async function(files) {
     if (busy) return showToast('진행 중인 PDF 처리를 먼저 완료해주세요.');
