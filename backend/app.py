@@ -646,3 +646,7 @@ def download_pdf(session_id: str):
         media_type="application/pdf",
         filename=latest["name"],
     )
+
+
+from pdf_unlock import router as pdf_unlock_router
+app.include_router(pdf_unlock_router)
