@@ -1,4 +1,4 @@
-# 몽글 코드 v1.1.0
+# 몽글 코드 v1.3.0
 2–6인 온라인 숫자 추리 게임. 흑백 0–11 숫자 타일 24개 + 흑백 조커 각 1개, 총 26타일의 확장 규칙.
 2–3인은 4장, 4–6인은 3장으로 시작합니다. 모두 초기 배치 완료 후 시작합니다. 턴 시작 자동 드로우 후 삽입 위치를 선택하며,
 정답 후 추가 추리/멈추기, 실패 시 드로우 타일 공개. 덱 소진 시 가장 왼쪽 숨긴 타일 공개.
@@ -15,9 +15,9 @@ Render 게임 서버 ALLOWED_ORIGINS에 PDF 프론트 주소가 있어야 합니
 ```powershell
 cd C:\project\pdf_page_editor_render_split
 npm ci --prefix game-server
-node --test game-server/test/code.test.cjs game-server/test/code-joker.test.cjs
-git add game-server/server.cjs game-server/code-service.cjs game-server/code-core.cjs game-server/test/code.test.cjs game-server/test/code-joker.test.cjs frontend/code-game.html frontend/code-game.js frontend/arcade.html CODE_GAME_README.md
-git commit -m "몽글 코드 흑백 조커 및 위치 선택 추가"
+node --test game-server/test/code.test.cjs game-server/test/code-joker.test.cjs game-server/test/code-ui.test.cjs
+git add game-server/server.cjs game-server/code-service.cjs game-server/code-core.cjs game-server/test/code.test.cjs game-server/test/code-joker.test.cjs game-server/test/code-ui.test.cjs frontend/code-game.html frontend/code-game.js frontend/arcade.html CODE_GAME_README.md
+git commit -m "몽글 코드 선택 강조 및 오답 추리 기록 추가"
 git push origin main
 ```
 Render mongle-game-server와 PDF 프론트엔드 배포 후 /code-game.html 접속.
@@ -25,7 +25,7 @@ PDF Python API 변경은 없습니다. 로비 arcade.html에도 카드가 추가
 
 ## 검증 및 제한
 실제 WebSocket으로 6명 입장/정원 초과/개인별 숫자 비공개/턴 검증 테스트 통과.
-서버/규칙 테스트 총 12개 통과. 브라우저 실행은 환경 제한으로 차단되어 실제 화면 클릭 검증은 미완료. 실제 Render 배포는 미수행.
+서버/규칙 테스트 총 20개 통과 (UI DOM 로직 포함). 브라우저 실행은 환경 제한으로 차단되어 실제 화면 클릭 검증은 미완료. 실제 Render 배포는 미수행.
 공식 제품의 이미지나 UI를 사용하지 않은 독립 디자인이며 6인 확장 규칙입니다.
 
 ## v1.1.0 변경 사항
@@ -39,3 +39,20 @@ PDF Python API 변경은 없습니다. 로비 arcade.html에도 카드가 추가
 - 조커/숫자 여부를 다른 참가자에게 알려주지 않도록 모든 드로우에 같은 배치 절차를 사용합니다.
 - 재접속 시 진행 중인 배치 상태도 유지됩니다. 배포 후 기존 방은 종료되므로 새 방을 만들고 Ctrl+F5 해주세요.
 - 이번 ZIP은 v1.0 설치 없이도 적용할 수 있는 누적 추가 패키지입니다. 게임 서버와 프론트엔드를 함께 업데이트하세요.
+
+## v1.2.0 변경 사항
+- 각 참가자가 마지막으로 가져와 배치한 타일에 초록 테두리와 ‘새 타일’ 배지를 표시합니다.
+- 본인/상대 모두 같은 타일 위치를 볼 수 있지만, 상대의 숨긴 숫자/조커 여부는 전달하지 않습니다.
+- 다음 타일 배치 전까지 표시를 유지합니다. 덱이 비면 마지막으로 가져온 타일 표시가 유지됩니다.
+- 틀려서 공개된 타일도 표시는 유지하며, 재대결 시 초기화합니다.
+- 처음 나눠 받은 타일 전체에는 새 타일 표시를 붙이지 않습니다.
+- 선택 중인 타일은 보라색 외곽선으로 별도 구분합니다.
+
+## v1.3.0 변경 사항
+- 선택한 타일에 보라색 외곽선과 선택자 배지 표시. 같은 방 참가자에게 실시간 공유합니다.
+- 마지막 추리 대상에 정답/오답 배지 표시. 오답은 빨간 테두리와 추리했던 값 표시입니다.
+- 타일별 ‘아닌 값’ 메모는 중복 없이 누적됩니다. 타일 위치가 변해도 ID로 연결됩니다.
+- 최근 추리 100건을 시간 역순으로 표시합니다. 이름/추리 당시 위치/추리 값/결과를 기록합니다.
+- 오답은 상대의 실제 숫자를 노출하지 않습니다. 벌칙으로 본인 타일 공개는 기존 규칙대로입니다.
+- 선택은 차례 종료/추리 완료 시 해제하며, 기록과 오답 메모는 재대결 시 초기화됩니다.
+- 마지막 정답/오답 강조는 다음 추리 결과까지 유지합니다. 새 타일 배지는 별도로 유지합니다.
