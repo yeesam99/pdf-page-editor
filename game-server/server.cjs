@@ -11,7 +11,7 @@ function createServer({roomOptions={},allowedOrigins=process.env.ALLOWED_ORIGINS
  const manager=new Rooms({now:()=>base+performance.now(),...roomOptions});
  const mazeManager=new MazeRooms({now:()=>base+performance.now(),...roomOptions});
  const blockManager=manager;
- const assets=new Set(['puyo-game.html','puyo-game.css','puyo-game.js','puyo-core.js','arcade.html','block-online.html','block-online.css','block-online.js','block-online-config.js','block-online-engine.js','block-battle-core.js','block-game-core.js','block-game.html','block-game.css','block-game.js']);
+ const assets=new Set(['code-game.html','code-game.js','puyo-game.html','puyo-game.css','puyo-game.js','puyo-core.js','arcade.html','block-online.html','block-online.css','block-online.js','block-online-config.js','block-online-engine.js','block-battle-core.js','block-game-core.js','block-game.html','block-game.css','block-game.js']);
  const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
  for(const file of ['maze-online.html','maze-online.css','maze-online.js'])assets.add(file);
  const server=http.createServer((req,res)=>{let url;try{url=new URL(req.url,'http://localhost');}catch{res.writeHead(400).end();return;}
@@ -22,8 +22,9 @@ function createServer({roomOptions={},allowedOrigins=process.env.ALLOWED_ORIGINS
  });
  const wss=new WebSocketServer({noServer:true,maxPayload:2048,perMessageDeflate:false});
  const puyoService=attachPuyo(server,{allowedOrigins});
+ const codeService=require('./code-service.cjs').attachCode(server,{allowedOrigins});
  server.on('upgrade',(req,socket,head)=>{
-   if(req.url==='/puyo-ws')return;
+   if(req.url==='/puyo-ws'||req.url==='/code-ws')return;
    const allowed=new Set(allowedOrigins.split(',').map(s=>s.trim()).filter(Boolean));allowed.add('http://'+req.headers.host);allowed.add('https://'+req.headers.host);
    if(!['/ws','/maze-ws'].includes(req.url)||!allowed.has(req.headers.origin)||wss.clients.size>=400){socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');socket.destroy();return;}
    wss.handleUpgrade(req,socket,head,ws=>wss.emit('connection',ws,req));
@@ -62,7 +63,7 @@ function createServer({roomOptions={},allowedOrigins=process.env.ALLOWED_ORIGINS
  const simulation=setInterval(()=>{manager.tick();mazeManager.tick();},16);
  const stateTimer=setInterval(()=>{for(const r of manager.rooms.values())broadcast(r);for(const r of mazeManager.rooms.values())broadcast(r,mazeManager);},100);
  const heartbeat=setInterval(()=>{for(const ws of wss.clients)ws.checkAlive?.();},10000);
- function close(){puyoService.close();clearInterval(simulation);clearInterval(stateTimer);clearInterval(heartbeat);for(const ws of wss.clients)ws.terminate();wss.close();return new Promise(resolve=>server.close(resolve));}
+ function close(){codeService.close();puyoService.close();clearInterval(simulation);clearInterval(stateTimer);clearInterval(heartbeat);for(const ws of wss.clients)ws.terminate();wss.close();return new Promise(resolve=>server.close(resolve));}
  return{server,wss,manager,mazeManager,close};
 }
 if(require.main===module){const app=createServer();app.server.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log('Mongle online server listening on '+app.server.address().port));for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>app.close().then(()=>process.exit(0)));}
