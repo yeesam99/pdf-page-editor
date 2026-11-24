@@ -1,4 +1,4 @@
-# 몽글 코드 v1.3.0
+# 몽글 코드 v1.4.0
 2–6인 온라인 숫자 추리 게임. 흑백 0–11 숫자 타일 24개 + 흑백 조커 각 1개, 총 26타일의 확장 규칙.
 2–3인은 4장, 4–6인은 3장으로 시작합니다. 모두 초기 배치 완료 후 시작합니다. 턴 시작 자동 드로우 후 삽입 위치를 선택하며,
 정답 후 추가 추리/멈추기, 실패 시 드로우 타일 공개. 덱 소진 시 가장 왼쪽 숨긴 타일 공개.
@@ -17,7 +17,7 @@ cd C:\project\pdf_page_editor_render_split
 npm ci --prefix game-server
 node --test game-server/test/code.test.cjs game-server/test/code-joker.test.cjs game-server/test/code-ui.test.cjs
 git add game-server/server.cjs game-server/code-service.cjs game-server/code-core.cjs game-server/test/code.test.cjs game-server/test/code-joker.test.cjs game-server/test/code-ui.test.cjs frontend/code-game.html frontend/code-game.js frontend/arcade.html CODE_GAME_README.md
-git commit -m "몽글 코드 선택 강조 및 오답 추리 기록 추가"
+git commit -m "몽글 코드 2초 추리 팝업 및 공개 타일 X 표시"
 git push origin main
 ```
 Render mongle-game-server와 PDF 프론트엔드 배포 후 /code-game.html 접속.
@@ -25,7 +25,7 @@ PDF Python API 변경은 없습니다. 로비 arcade.html에도 카드가 추가
 
 ## 검증 및 제한
 실제 WebSocket으로 6명 입장/정원 초과/개인별 숫자 비공개/턴 검증 테스트 통과.
-서버/규칙 테스트 총 20개 통과 (UI DOM 로직 포함). 브라우저 실행은 환경 제한으로 차단되어 실제 화면 클릭 검증은 미완료. 실제 Render 배포는 미수행.
+서버/규칙 테스트 총 23개 통과 (UI DOM 로직 포함). 브라우저 실행은 환경 제한으로 차단되어 실제 화면 클릭 검증은 미완료. 실제 Render 배포는 미수행.
 공식 제품의 이미지나 UI를 사용하지 않은 독립 디자인이며 6인 확장 규칙입니다.
 
 ## v1.1.0 변경 사항
@@ -56,3 +56,14 @@ PDF Python API 변경은 없습니다. 로비 arcade.html에도 카드가 추가
 - 오답은 상대의 실제 숫자를 노출하지 않습니다. 벌칙으로 본인 타일 공개는 기존 규칙대로입니다.
 - 선택은 차례 종료/추리 완료 시 해제하며, 기록과 오답 메모는 재대결 시 초기화됩니다.
 - 마지막 정답/오답 강조는 다음 추리 결과까지 유지합니다. 새 타일 배지는 별도로 유지합니다.
+
+## v1.4.0 변경 사항
+- 답을 누르면 모든 참가자에게 추리자/대상 이름/당시 타일 위치/선택한 답을 중앙 팝업으로 표시합니다.
+- 서버가 2초간 결과 판정을 보류하고, 이후 정답·오답 판정/타일 공개/차례 진행을 한 번만 수행합니다.
+- 팝업에는 실제 정답이나 정답 여부를 미리 전송하지 않습니다. 타일 소유자가 이미 아는 자기 숫자는 기존대로 표시됩니다.
+- 연출 중 선택 변경/중복 추리/멈추기/나가기는 잠깐 차단됩니다. 연결 끊김 뒤 재접속하면 진행 중인 팝업 상태를 받습니다.
+- 네트워크 지연에 따라 수신 시점은 다를 수 있으며 서버 종료 시각으로 남은 시간을 맞춥니다.
+- 공개 타일 위에 반투명 X 표시를 겹치고, 타일 아래 ‘공개’ 텍스트는 제거했습니다.
+- 새 타일/선택/오답 표시와 기존 기록은 유지합니다.
+- 실제 6개 WebSocket 클라이언트의 공통 팝업 수신/2초 후 결과/연출 중 요청 거절 검증을 포함해 23개 테스트 통과했습니다.
+- 클라이언트 통신 버전이 3으로 변경되었습니다. 게임 서버와 프론트엔드를 함께 배포하고 모두 Ctrl+F5 후 새 방을 생성하세요.

@@ -1,12 +1,15 @@
 'use strict';
-const $=id=>document.getElementById(id);let ws,state,choice;const key='mongle-code-session';
+const $=id=>document.getElementById(id);let ws,state,choice,guessSending=false,serverOffset=0;const key='mongle-code-session';
 const label=n=>n==='joker'?'조커':n===null?'?':String(n);
 function button(text,click,disabled=false){const b=document.createElement('button');b.textContent=text;b.onclick=click;b.disabled=disabled;return b;}
 function send(m){if(ws?.readyState===1)ws.send(JSON.stringify(m));else $('status').textContent='서버 연결을 확인해주세요.';}
-function connect(m){if(ws)ws.close();$('status').textContent='서버 연결 중…';const socket=new WebSocket((window.BLOCK_ONLINE_SERVER||location.origin).replace(/^http/,'ws')+'/code-ws');ws=socket;socket.onopen=()=>send({...m,version:2});socket.onclose=()=>{if(ws===socket)$('status').textContent='연결이 끊겼습니다. 새로고침하면 재접속합니다.';};socket.onerror=()=>{if(ws===socket)$('status').textContent='서버에 연결할 수 없습니다.';};socket.onmessage=e=>{if(ws!==socket)return;const m=JSON.parse(e.data);if(m.type==='error'){$('status').textContent=m.message;if(!state){sessionStorage.removeItem(key);ws=null;socket.close();}return;}if(m.type==='joined'){sessionStorage.setItem(key,JSON.stringify(m));return;}if(m.type==='left'){sessionStorage.removeItem(key);location.reload();return;}if(m.type==='state'){state=m;choice=m.selection?.actor===m.you?{player:m.selection.player,tile:m.selection.tile}:null;render();}};}
+function connect(m){if(ws)ws.close();$('status').textContent='서버 연결 중…';const socket=new WebSocket((window.BLOCK_ONLINE_SERVER||location.origin).replace(/^http/,'ws')+'/code-ws');ws=socket;socket.onopen=()=>send({...m,version:3});socket.onclose=()=>{if(ws===socket)$('status').textContent='연결이 끊겼습니다. 새로고침하면 재접속합니다.';};socket.onerror=()=>{if(ws===socket)$('status').textContent='서버에 연결할 수 없습니다.';};socket.onmessage=e=>{if(ws!==socket)return;const m=JSON.parse(e.data);if(m.type==='error'){guessSending=false;if(state)render();$('status').textContent=m.message;if(!state){sessionStorage.removeItem(key);ws=null;socket.close();}return;}if(m.type==='joined'){sessionStorage.setItem(key,JSON.stringify(m));return;}if(m.type==='left'){sessionStorage.removeItem(key);location.reload();return;}if(m.type==='state'){guessSending=false;serverOffset=typeof m.serverNow==='number'?m.serverNow-Date.now():0;state=m;choice=m.selection?.actor===m.you?{player:m.selection.player,tile:m.selection.tile}:null;render();}};}
 $('create').onclick=()=>connect({type:'create',name:$('name').value});$('join').onclick=()=>connect({type:'join',name:$('name').value,code:$('code').value});$('start').onclick=()=>send({type:'start'});$('leave').onclick=()=>send({type:'leave'});$('pass').onclick=()=>{choice=null;send({type:'pass'});};
 function render(){
- const s=state,me=s.players.find(p=>p.id===s.you),myTurn=s.phase==='play'&&s.turn===s.you,canGuess=myTurn&&!s.pending;
+ const s=state,me=s.players.find(p=>p.id===s.you),myTurn=s.phase==='play'&&s.turn===s.you,canGuess=myTurn&&!s.pending&&!s.announcement&&!guessSending;
+ const popup=$('guessPopup');popup.hidden=!s.announcement;
+ $('leave').disabled=!!s.announcement;
+ if(s.announcement){const a=s.announcement;$('popupActor').textContent=a.actor===s.you?'내가 선택한 답':`${a.actorName}님의 추리`;$('popupTarget').textContent=`${a.playerName}님의 ${a.position}번 타일`;$('popupAnswer').textContent=label(a.guess);$('popupAnswer').className='popup-answer '+(a.color?'white':'black');}
  $('entry').hidden=true;$('room').hidden=false;
  $('info').textContent=`방 ${s.code} · ${s.players.length}/6명 · 남은 타일 ${s.remaining}`;
  $('log').textContent=s.log;
@@ -26,8 +29,8 @@ function render(){
 
    const b=button(label(t.n),()=>{choice={player:p.id,tile:t.id};send({type:'select',...choice});render();},!canGuess||p.id===s.you||p.out||t.open);
    b.className='tile '+(t.color?'white':'black')+(t.open?' open':'')+(picked?' selected':'')+(t.n==='joker'?' joker':'')+(t.isNew?' new-tile':'')+(lastHit?(last.correct?' last-correct':' last-wrong'):'');
-   b.setAttribute('aria-label',`${i+1}번째 ${t.color?'흰색':'검정'} 타일 ${label(t.n)}${t.isNew?' · 새로 가져온 타일':''}`);cell.append(b);
-   const position=document.createElement('small');position.textContent=`${i+1}번${t.open?' · 공개':''}`;cell.append(position);
+   b.setAttribute('aria-label',`${i+1}번째 ${t.color?'흰색':'검정'} 타일 ${label(t.n)}${t.isNew?' · 새로 가져온 타일':''}${t.open?' · 공개된 타일':''}`);cell.append(b);
+   const position=document.createElement('small');position.textContent=`${i+1}번`;cell.append(position);
    if(picked){const tag=document.createElement('span');tag.className='selection-badge';const actor=s.players.find(x=>x.id===s.selection?.actor);tag.textContent=(actor&&actor.id!==s.you?actor.name:'내가')+' 선택 중';cell.append(tag);}
    if(lastHit){const result=document.createElement('span');result.className=last.correct?'correct-badge':'wrong-badge';result.textContent=`${last.correct?'✓':'✕'} ${label(last.guess)} ${last.correct?'정답':'오답'}`;cell.append(result);}
    if(t.wrongGuesses?.length){const note=document.createElement('small');note.className='wrong-notes';note.textContent='아닌 값: '+t.wrongGuesses.map(label).join(', ');cell.append(note);}
@@ -53,10 +56,10 @@ function render(){
  $('numbers').replaceChildren();
  for(const n of [...Array(12).keys(),'joker']){
   const valid=canGuess&&s.players.some(p=>p.id===choice?.player&&p.tiles.some(t=>t.id===choice.tile&&!t.open));
-  $('numbers').append(button(label(n),()=>{send({type:'guess',...choice,n});choice=null;},!valid));
+  $('numbers').append(button(label(n),()=>{if(guessSending||state.announcement)return;guessSending=true;send({type:'guess',...choice,n});choice=null;render();},!valid));
  }
  updateClock();
 }
-function updateClock(){if(!state)return;$('clock').textContent=['setup','play'].includes(state.phase)?`남은 시간 ${Math.max(0,Math.ceil((state.deadline-Date.now())/1000))}초`:'';}
+function updateClock(){if(!state)return;const now=Date.now()+serverOffset;if(state.announcement)$('popupSeconds').textContent=`${Math.max(0,Math.ceil((state.announcement.endsAt-now)/1000))}초 후 결과 공개`;$('clock').textContent=['setup','play'].includes(state.phase)?`남은 시간 ${Math.max(0,Math.ceil((state.deadline-now)/1000))}초`:'';}
 setInterval(updateClock,500);
 try{const saved=JSON.parse(sessionStorage.getItem(key));if(saved)connect({type:'resume',code:saved.code,token:saved.token});}catch{sessionStorage.removeItem(key);}

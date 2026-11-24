@@ -9,12 +9,13 @@ function slots(tiles,tile){return Array.from({length:tiles.length+1},(_,i)=>i).f
 function finish(r){const ps=r.players.filter(alive);if(ps.length<=1){r.phase='done';r.winner=ps[0]?.name||'무승부';r.pending=null;return true;}return false;}
 function next(r){if(finish(r))return;let i=r.players.findIndex(p=>p.id===r.turn);do{i=(i+1)%r.players.length;}while(!alive(r.players[i]));r.turn=r.players[i].id;r.selection=null;r.again=false;r.draw=null;r.pending=r.deck.pop()||null;r.deadline=Date.now()+60000;}
 function begin(r){r.phase='play';r.turn=r.players.at(-1).id;r.log='배치 완료 · 게임 시작';next(r);}
-function start(r){r.selection=null;r.attempts=[];r.deck=deck();for(const p of r.players){p.out=false;p.setupDone=false;p.latestDrawId=null;p.tiles=r.deck.splice(0,r.players.length>=4?3:4);p.tiles=[...p.tiles.filter(t=>t.n!==JOKER).sort(compare),...p.tiles.filter(t=>t.n===JOKER)];}r.phase='setup';r.pending=null;r.turn=null;r.again=false;r.winner=null;r.log='내 타일을 확인하고 조커 위치를 정한 뒤 배치를 완료하세요.';r.deadline=Date.now()+60000;}
+function start(r){r.announcement=null;r.selection=null;r.attempts=[];r.deck=deck();for(const p of r.players){p.out=false;p.setupDone=false;p.latestDrawId=null;p.tiles=r.deck.splice(0,r.players.length>=4?3:4);p.tiles=[...p.tiles.filter(t=>t.n!==JOKER).sort(compare),...p.tiles.filter(t=>t.n===JOKER)];}r.phase='setup';r.pending=null;r.turn=null;r.again=false;r.winner=null;r.log='내 타일을 확인하고 조커 위치를 정한 뒤 배치를 완료하세요.';r.deadline=Date.now()+60000;}
 function moveJoker(r,p,id,index){if(r.phase!=='setup'||p.setupDone||p.out)throw Error('지금은 초기 배치를 바꿀 수 없습니다.');const t=p.tiles.find(t=>t.id===id);if(!t||t.n!==JOKER)throw Error('내 조커를 선택하세요.');if(!Number.isInteger(index)||index<0||index>=p.tiles.length)throw Error('잘못된 배치 위치입니다.');p.tiles=p.tiles.filter(x=>x!==t);p.tiles.splice(index,0,t);}
 function ready(r,p){if(r.phase!=='setup'||p.out)throw Error('배치 단계가 아닙니다.');p.setupDone=true;if(r.players.every(x=>x.out||x.setupDone))begin(r);}
 function place(r,p,index){if(r.phase!=='play'||r.turn!==p.id||!r.pending)throw Error('배치할 타일이 없습니다.');if(!slots(p.tiles,r.pending).includes(index))throw Error('숫자 오름차순을 지키는 위치를 선택하세요.');p.tiles.splice(index,0,r.pending);r.draw=r.pending.id;p.latestDrawId=r.pending.id;r.pending=null;}
 function fail(r,p){if(r.pending)place(r,p,slots(p.tiles,r.pending)[0]);const t=p.tiles.find(t=>t.id===r.draw&&!t.open)||p.tiles.find(t=>!t.open);if(t)t.open=true;r.log=`${p.name}: 실패, 내 타일 공개`;next(r);}
-function action(r,p,m){
+function action(r,p,m,{announceAt}={}){
+ if(r.announcement)throw Error('추리 공개 중입니다. 잠시 기다려주세요.');
  if(r.phase!=='play'||r.turn!==p.id||p.out)throw Error('내 차례가 아닙니다.');
  if(m.type==='place'){place(r,p,m.index);return;}
  if(r.pending)throw Error('가져온 타일을 먼저 배치하세요.');
@@ -24,6 +25,10 @@ function action(r,p,m){
  if(!target||target===p||!alive(target)||!t||t.open)throw Error('상대의 숨긴 타일을 선택하세요.');
  if(m.type==='select'){r.selection={actor:p.id,player:target.id,tile:t.id};return;}
  if(!(m.n===JOKER||Number.isInteger(m.n)&&m.n>=0&&m.n<=11))throw Error('숫자 또는 조커를 선택하세요.');
+ if(announceAt!==undefined){
+  r.announcement={id:randomUUID(),actor:p.id,actorName:p.name,player:target.id,playerName:target.name,tile:t.id,position:target.tiles.indexOf(t)+1,color:t.color,guess:m.n,endsAt:announceAt+2000};
+  r.selection={actor:p.id,player:target.id,tile:t.id};r.deadline+=2000;return;
+ }
  const correct=t.n===m.n;
  const attempt={id:randomUUID(),actor:p.id,actorName:p.name,player:target.id,playerName:target.name,tile:t.id,position:target.tiles.indexOf(t)+1,guess:m.n,correct};
  r.attempts=[...(r.attempts||[]),attempt].slice(-100);r.selection=null;
@@ -31,5 +36,18 @@ function action(r,p,m){
  if(correct){t.open=true;r.again=true;r.deadline=Date.now()+60000;finish(r);}else{t.wrongGuesses=[...new Set([...(t.wrongGuesses||[]),m.n])];fail(r,p);}
  r.log=message;
 }
-function view(r,p){return {type:'state',version:2,code:r.code,phase:r.phase,you:p.id,host:r.host,turn:r.turn,again:r.again,remaining:r.deck.length,deadline:r.deadline,log:r.log,winner:r.winner,selection:r.selection||null,attempts:r.attempts||[],pending:r.turn===p.id&&r.pending?{...r.pending,slots:slots(p.tiles,r.pending)}:null,players:r.players.map(x=>({id:x.id,name:x.name,connected:!!x.ws,out:x.out,setupDone:!!x.setupDone,tileCount:x.tiles.length,tiles:r.phase==='setup'&&x!==p?[]:x.tiles.map(t=>({id:t.id,color:t.color,open:t.open,isNew:t.id===x.latestDrawId,wrongGuesses:t.wrongGuesses||[],n:x===p||t.open||r.phase==='done'?t.n:null}))}))};}
-module.exports={JOKER,deck,ordered,slots,alive,finish,next,begin,start,moveJoker,ready,place,fail,action,view};
+function submitGuess(r,p,m,now=Date.now()){
+ if(m.type!=='guess')throw Error('추리 요청이 아닙니다.');
+ action(r,p,m,{announceAt:now});
+}
+function resolveGuess(r,now=Date.now()){
+ const a=r.announcement;if(!a||now<a.endsAt)return false;
+ r.announcement=null;
+ const p=r.players.find(x=>x.id===a.actor),target=r.players.find(x=>x.id===a.player);
+ if(r.phase!=='play'||r.turn!==a.actor||!p||p.out||!target||target.out||!target.tiles.some(t=>t.id===a.tile&&!t.open)){
+  r.selection=null;r.log='참가자 상태가 바뀌어 추리가 취소되었습니다.';return true;
+ }
+ action(r,p,{type:'guess',player:a.player,tile:a.tile,n:a.guess});return true;
+}
+function view(r,p){return {type:'state',version:3,serverNow:Date.now(),announcement:r.announcement||null,code:r.code,phase:r.phase,you:p.id,host:r.host,turn:r.turn,again:r.again,remaining:r.deck.length,deadline:r.deadline,log:r.log,winner:r.winner,selection:r.selection||null,attempts:r.attempts||[],pending:r.turn===p.id&&r.pending?{...r.pending,slots:slots(p.tiles,r.pending)}:null,players:r.players.map(x=>({id:x.id,name:x.name,connected:!!x.ws,out:x.out,setupDone:!!x.setupDone,tileCount:x.tiles.length,tiles:r.phase==='setup'&&x!==p?[]:x.tiles.map(t=>({id:t.id,color:t.color,open:t.open,isNew:t.id===x.latestDrawId,wrongGuesses:t.wrongGuesses||[],n:x===p||t.open||r.phase==='done'?t.n:null}))}))};}
+module.exports={JOKER,deck,ordered,slots,alive,finish,next,begin,start,moveJoker,ready,place,fail,action,submitGuess,resolveGuess,view};
